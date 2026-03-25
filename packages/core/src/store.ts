@@ -66,11 +66,15 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
   }
 
   async createTask(input: TaskCreateInput): Promise<Task> {
+    if (!input.description?.trim()) {
+      throw new Error("Description is required and cannot be empty");
+    }
+
     const id = await this.allocateId();
     const now = new Date().toISOString();
     const task: Task = {
       id,
-      title: input.title || "",
+      title: input.title || undefined,
       description: input.description,
       column: input.column || "triage",
       dependencies: input.dependencies || [],
