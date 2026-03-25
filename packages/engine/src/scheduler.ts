@@ -69,8 +69,6 @@ export class Scheduler {
       let started = 0;
 
       for (const taskId of ordered) {
-        if (started >= available) break;
-
         const task = tasks.find((t) => t.id === taskId)!;
 
         // Check all deps are satisfied (done or in-review)
@@ -80,7 +78,14 @@ export class Scheduler {
         });
 
         if (unmetDeps.length > 0) {
+          await this.store.setStatus(task.id, "blocked");
           this.options.onBlocked?.(task, unmetDeps);
+          continue;
+        }
+
+        // Dependencies met — check concurrency
+        if (started >= available) {
+          await this.store.setStatus(task.id, "queued");
           continue;
         }
 
