@@ -1,0 +1,20 @@
+{
+  "name": "@hai/engine",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hai/core": "workspace:*",
+    "@mariozechner/pi-coding-agent": "^0.62.0",
+    "@mariozechner/pi-ai": "^0.62.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
