@@ -1,9 +1,9 @@
 import { EventEmitter } from "node:events";
 import { execSync } from "node:child_process";
 import { mkdir, readFile, writeFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
-import { existsSync } from "node:fs";
-import type { Task, TaskDetail, TaskCreateInput, BoardConfig, Column, MergeResult, TaskStatus } from "./types.js";
+import { join, sep } from "node:path";
+import { existsSync, watch, type FSWatcher } from "node:fs";
+import type { Task, TaskDetail, TaskCreateInput, BoardConfig, Column, MergeResult } from "./types.js";
 import { VALID_TRANSITIONS } from "./types.js";
 
 export interface TaskStoreEvents {
@@ -18,6 +18,17 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
   private haiDir: string;
   private tasksDir: string;
   private configPath: string;
+
+  /** File-system watcher instance */
+  private watcher: FSWatcher | null = null;
+  /** In-memory cache of tasks for diffing watcher events */
+  private taskCache: Map<string, Task> = new Map();
+  /** Paths recently written by in-process mutations (suppresses duplicate events) */
+  private recentlyWritten: Set<string> = new Set();
+  /** Pending debounce timers keyed by task ID */
+  private debounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  /** Debounce interval in ms */
+  private debounceMs = 150;
 
   constructor(private rootDir: string) {
     super();
@@ -63,14 +74,18 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       description: input.description || "",
       column: input.column || "triage",
       dependencies: input.dependencies || [],
-      status: "idle",
       createdAt: now,
       updatedAt: now,
     };
 
     const dir = this.taskDir(id);
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "task.json"), JSON.stringify(task, null, 2));
+    const taskJsonPath = join(dir, "task.json");
+    this.suppressWatcher(taskJsonPath);
+    await writeFile(taskJsonPath, JSON.stringify(task, null, 2));
+
+    // Update cache if watcher is active
+    if (this.watcher) this.taskCache.set(id, { ...task });
 
     const prompt = task.column === "triage"
       ? `# ${id}: ${task.title}\n\n${task.description}\n`
@@ -135,16 +150,12 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     task.column = toColumn;
     task.updatedAt = new Date().toISOString();
 
-    // Auto-set status based on target column
-    if (toColumn === "in-review" || toColumn === "done") {
-      task.status = "complete";
-    } else if (toColumn === "in-progress") {
-      task.status = "executing";
-    } else if (toColumn === "todo") {
-      task.status = "idle";
-    }
+    const taskJsonPath = join(dir, "task.json");
+    this.suppressWatcher(taskJsonPath);
+    await writeFile(taskJsonPath, JSON.stringify(task, null, 2));
 
-    await writeFile(join(dir, "task.json"), JSON.stringify(task, null, 2));
+    // Update cache if watcher is active
+    if (this.watcher) this.taskCache.set(id, { ...task });
 
     this.emit("task:moved", { task, from: fromColumn, to: toColumn });
     return task;
@@ -163,7 +174,12 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     if (updates.worktree !== undefined) task.worktree = updates.worktree;
     task.updatedAt = new Date().toISOString();
 
-    await writeFile(join(dir, "task.json"), JSON.stringify(task, null, 2));
+    const taskJsonPath = join(dir, "task.json");
+    this.suppressWatcher(taskJsonPath);
+    await writeFile(taskJsonPath, JSON.stringify(task, null, 2));
+
+    // Update cache if watcher is active
+    if (this.watcher) this.taskCache.set(id, { ...task });
 
     if (updates.prompt !== undefined) {
       await writeFile(join(dir, "PROMPT.md"), updates.prompt);
@@ -173,24 +189,16 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     return task;
   }
 
-  async setStatus(id: string, status: TaskStatus): Promise<Task> {
-    const dir = this.taskDir(id);
-    const data = await readFile(join(dir, "task.json"), "utf-8");
-    const task = JSON.parse(data) as Task;
-
-    task.status = status;
-    task.updatedAt = new Date().toISOString();
-
-    await writeFile(join(dir, "task.json"), JSON.stringify(task, null, 2));
-
-    this.emit("task:updated", task);
-    return task;
-  }
-
   async deleteTask(id: string): Promise<Task> {
     const dir = this.taskDir(id);
     const data = await readFile(join(dir, "task.json"), "utf-8");
     const task = JSON.parse(data) as Task;
+
+    const taskJsonPath = join(dir, "task.json");
+    this.suppressWatcher(taskJsonPath);
+
+    // Remove from cache if watcher is active
+    if (this.watcher) this.taskCache.delete(id);
 
     const { rm } = await import("node:fs/promises");
     await rm(dir, { recursive: true });
@@ -304,11 +312,156 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   private async moveToDone(task: Task, dir: string): Promise<void> {
     task.column = "done";
-    task.status = "complete";
     task.worktree = undefined;
     task.updatedAt = new Date().toISOString();
-    await writeFile(join(dir, "task.json"), JSON.stringify(task, null, 2));
+
+    const taskJsonPath = join(dir, "task.json");
+    this.suppressWatcher(taskJsonPath);
+    await writeFile(taskJsonPath, JSON.stringify(task, null, 2));
+
+    // Update cache if watcher is active
+    if (this.watcher) this.taskCache.set(task.id, { ...task });
+
     this.emit("task:moved", { task, from: "in-review" as Column, to: "done" as Column });
+  }
+
+  // ── File-system watcher ───────────────────────────────────────────
+
+  /**
+   * Start watching the tasks directory for external changes.
+   * Populates the in-memory cache and begins emitting events for
+   * any task.json mutations made outside this process.
+   */
+  async watch(): Promise<void> {
+    if (this.watcher) return; // already watching
+
+    // Populate cache with current state
+    const tasks = await this.listTasks();
+    this.taskCache.clear();
+    for (const task of tasks) {
+      this.taskCache.set(task.id, { ...task });
+    }
+
+    try {
+      this.watcher = watch(this.tasksDir, { recursive: true }, (_event, filename) => {
+        if (typeof filename !== "string") return;
+        this.handleFsChange(filename);
+      });
+
+      // Ignore watcher errors (e.g. dir deleted) – just stop watching
+      this.watcher.on("error", () => {
+        this.stopWatching();
+      });
+    } catch {
+      // fs.watch may throw on some platforms; silently degrade
+    }
+  }
+
+  /**
+   * Stop the file-system watcher and clean up.
+   */
+  stopWatching(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
+    for (const timer of this.debounceTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.debounceTimers.clear();
+    this.taskCache.clear();
+    this.recentlyWritten.clear();
+  }
+
+  /**
+   * Mark a file path as recently written by an in-process mutation
+   * so the watcher will skip it.
+   */
+  private suppressWatcher(filePath: string): void {
+    this.recentlyWritten.add(filePath);
+    setTimeout(() => {
+      this.recentlyWritten.delete(filePath);
+    }, this.debounceMs + 100);
+  }
+
+  /**
+   * Handle a raw fs.watch callback. `filename` is relative to tasksDir.
+   */
+  private handleFsChange(filename: string): void {
+    // We only care about task.json files
+    const parts = filename.split(sep);
+    // Normalize for platforms that may use forward slashes
+    const normalizedParts = parts.length === 1 ? filename.split("/") : parts;
+
+    if (normalizedParts.length < 2) return;
+    const taskId = normalizedParts[0];
+    const file = normalizedParts[normalizedParts.length - 1];
+    if (file !== "task.json") return;
+    if (!taskId.startsWith("HAI-")) return;
+
+    const fullPath = join(this.tasksDir, taskId, "task.json");
+
+    // Check suppression
+    if (this.recentlyWritten.has(fullPath)) return;
+
+    // Debounce per task ID
+    const existing = this.debounceTimers.get(taskId);
+    if (existing) clearTimeout(existing);
+
+    this.debounceTimers.set(
+      taskId,
+      setTimeout(() => {
+        this.debounceTimers.delete(taskId);
+        this.processTaskChange(taskId, fullPath).catch(() => {
+          // Ignore errors (file may have been deleted mid-read)
+        });
+      }, this.debounceMs),
+    );
+  }
+
+  /**
+   * Read a task.json from disk and diff against the cache to emit the right event.
+   */
+  private async processTaskChange(taskId: string, filePath: string): Promise<void> {
+    const cached = this.taskCache.get(taskId);
+
+    if (!existsSync(filePath)) {
+      // Task was deleted
+      if (cached) {
+        this.taskCache.delete(taskId);
+        this.emit("task:deleted", cached);
+      }
+      return;
+    }
+
+    let task: Task;
+    try {
+      const data = await readFile(filePath, "utf-8");
+      task = JSON.parse(data) as Task;
+    } catch {
+      return; // File not readable or invalid JSON
+    }
+
+    if (!cached) {
+      // New task
+      this.taskCache.set(taskId, { ...task });
+      this.emit("task:created", task);
+      return;
+    }
+
+    // Check for column change → task:moved
+    if (cached.column !== task.column) {
+      const from = cached.column;
+      this.taskCache.set(taskId, { ...task });
+      this.emit("task:moved", { task, from, to: task.column });
+      return;
+    }
+
+    // Check for any other field change → task:updated
+    if (JSON.stringify(cached) !== JSON.stringify(task)) {
+      this.taskCache.set(taskId, { ...task });
+      this.emit("task:updated", task);
+    }
   }
 
   getRootDir(): string {

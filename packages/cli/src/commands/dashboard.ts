@@ -15,6 +15,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
   const cwd = process.cwd();
   const store = new TaskStore(cwd);
   await store.init();
+  await store.watch();
 
   // AI-powered merge handler
   const onMerge = (taskId: string) =>
@@ -25,6 +26,14 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
 
   // Start the web server with AI merge wired in
   const app = createServer(store, { onMerge });
+
+  // Clean shutdown for file watcher when engine is not active
+  if (!opts.engine) {
+    process.on("SIGINT", () => {
+      store.stopWatching();
+      process.exit(0);
+    });
+  }
 
   // Optionally start the AI engine
   if (opts.engine) {
@@ -52,6 +61,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     process.on("SIGINT", () => {
       triage.stop();
       scheduler.stop();
+      store.stopWatching();
       process.exit(0);
     });
   }
@@ -71,6 +81,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     } else {
       console.log(`  AI engine:  off (use --engine to enable)`);
     }
+    console.log(`  File watcher: ✓ active`);
     console.log(`  Press Ctrl+C to stop`);
     console.log();
 
