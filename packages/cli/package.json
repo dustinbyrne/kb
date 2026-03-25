@@ -1,0 +1,22 @@
+{
+  "name": "hai",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "hai": "./dist/bin.js"
+  },
+  "scripts": {
+    "dev": "tsx src/bin.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hai/core": "workspace:*",
+    "@hai/dashboard": "workspace:*",
+    "@hai/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
