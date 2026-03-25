@@ -33,7 +33,7 @@ function resolveDependencyOrder(tasks: Task[]): string[] {
     visiting.add(id);
     const task = taskMap.get(id);
     if (task) {
-      for (const depId of task.dependencies) {
+      for (const depId of task.dependencies || []) {
         if (taskMap.has(depId)) visit(depId);
       }
     }
@@ -72,7 +72,7 @@ export function groupByWorktree(
   const taskById = new Map(allTasks.map((t) => [t.id, t]));
   const todoTasks = allTasks.filter((t) => t.column === "todo");
   const eligible = todoTasks.filter((t) =>
-    t.dependencies.every((depId) => {
+    (t.dependencies || []).every((depId) => {
       const dep = taskById.get(depId);
       return dep && (dep.column === "done" || dep.column === "in-review");
     }),

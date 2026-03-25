@@ -91,7 +91,7 @@ export function InlineCreateCard({ tasks, onSubmit, onCancel, addToast }: Inline
                     onClick={() => toggleDep(t.id)}
                   >
                     <span className="dep-dropdown-id">{t.id}</span>
-                    <span className="dep-dropdown-title">{truncate(t.title, 30)}</span>
+                    <span className="dep-dropdown-title">{truncate(t.title || t.description || t.id, 30)}</span>
                   </div>
                 ))
               )}
