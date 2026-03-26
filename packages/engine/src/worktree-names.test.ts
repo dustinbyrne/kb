@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { generateWorktreeName } from "./worktree-names.js";
+import { generateWorktreeName, ADJECTIVES, NOUNS } from "./worktree-names.js";
 
 describe("generateWorktreeName", () => {
   let tempDir: string;
@@ -66,5 +66,26 @@ describe("generateWorktreeName", () => {
     // tempDir has no .worktrees/ subdirectory
     const name = generateWorktreeName(tempDir);
     expect(name).toMatch(/^[a-z]+-[a-z]+$/);
+  });
+
+  it("ADJECTIVES and NOUNS share no common elements", () => {
+    const overlap = ADJECTIVES.filter((w) => NOUNS.includes(w));
+    expect(overlap).toEqual([]);
+  });
+
+  it("ADJECTIVES and NOUNS each have exactly 50 entries", () => {
+    expect(ADJECTIVES).toHaveLength(50);
+    expect(NOUNS).toHaveLength(50);
+  });
+
+  it("never generates a tautological name (adjective === noun)", () => {
+    const names: string[] = [];
+    for (let i = 0; i < 250; i++) {
+      names.push(generateWorktreeName(tempDir));
+    }
+    for (const name of names) {
+      const parts = name.split("-");
+      expect(parts[0]).not.toBe(parts[1]);
+    }
   });
 });

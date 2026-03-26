@@ -2,7 +2,7 @@ import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
-const ADJECTIVES = [
+export const ADJECTIVES = [
   "amber", "azure", "bold", "brave", "bright",
   "calm", "clear", "cool", "coral", "crisp",
   "deft", "dusky", "eager", "early", "faint",
@@ -15,16 +15,16 @@ const ADJECTIVES = [
   "sharp", "sleek", "solar", "swift", "vivid",
 ];
 
-const NOUNS = [
-  "badger", "breeze", "brook", "cedar", "cliff",
-  "crane", "daisy", "delta", "dune", "eagle",
-  "ember", "falcon", "fern", "finch", "flame",
-  "frost", "grove", "hawk", "heron", "iris",
-  "lark", "lotus", "maple", "marsh", "mesa",
-  "moss", "oak", "olive", "orbit", "otter",
-  "panda", "peach", "petal", "pine", "plume",
-  "quail", "raven", "reef", "ridge", "robin",
-  "sage", "shore", "spark", "stone", "swift",
+export const NOUNS = [
+  "aspen", "badger", "breeze", "brook", "cedar",
+  "cliff", "crane", "creek", "daisy", "delta",
+  "dune", "eagle", "ember", "falcon", "fern",
+  "finch", "flame", "frost", "grove", "hawk",
+  "heron", "iris", "lark", "lotus", "marsh",
+  "mesa", "moss", "oak", "olive", "orbit",
+  "otter", "panda", "peach", "petal", "pine",
+  "plume", "quail", "raven", "reef", "ridge",
+  "robin", "sage", "shore", "spark", "stone",
   "thorn", "tiger", "trail", "trout", "wren",
 ];
 
