@@ -1,11 +1,13 @@
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { TaskStore, Task, TaskDetail } from "@hai/core";
+import type { TaskStore, Task, TaskDetail, StepStatus } from "@hai/core";
 import { Type } from "@mariozechner/pi-ai";
 import { createHaiAgent } from "./pi.js";
-import { reviewStep, type ReviewResult } from "./reviewer.js";
+import { reviewStep } from "./reviewer.js";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
+
+const STEP_STATUSES: StepStatus[] = ["pending", "in-progress", "done", "skipped"];
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a task execution agent for "hai", an AI-orchestrated task board.
 
@@ -18,24 +20,23 @@ You are working in a git worktree isolated from the main branch. Your job is to 
 4. Test your changes
 5. Commit at meaningful boundaries (step completion)
 
-## Reporting progress via CLI
+## Reporting progress via tools
 
-Use the \`hai task\` CLI to report progress. The board updates in real-time.
-The task ID and concrete examples are provided in the execution prompt below.
+You have tools to report progress. The board updates in real-time.
 
 **Step lifecycle:**
-- Before starting a step: \`hai task update <ID> <STEP> in-progress\`
-- After completing a step: \`hai task update <ID> <STEP> done\`
-- If skipping a step: \`hai task update <ID> <STEP> skipped\`
+- Before starting a step: \`task_update(step=N, status="in-progress")\`
+- After completing a step: \`task_update(step=N, status="done")\`
+- If skipping a step: \`task_update(step=N, status="skipped")\`
 
-**Logging:** \`hai task log <ID> "description of what happened"\`
+**Logging important actions:** \`task_log(message="what happened")\`
 
-**Out-of-scope work:** \`hai task create "description of new work needed"\`
+**Out-of-scope work found during execution:** \`task_create(description="what needs doing")\`
 
 ## Cross-model review via review_step tool
 
-You have a \`review_step\` tool available. It spawns a SEPARATE reviewer agent
-(different model, read-only access) to independently assess your work.
+You have a \`review_step\` tool. It spawns a SEPARATE reviewer agent (different
+model, read-only access) to independently assess your work.
 
 **When to call it** — based on the Review Level in the PROMPT.md:
 
@@ -68,7 +69,7 @@ You have a \`review_step\` tool available. It spawns a SEPARATE reviewer agent
 - Stay within the file scope defined in PROMPT.md
 - Read "Context to Read First" files before starting
 - Follow the "Do NOT" section strictly
-- If you find work outside the task's scope, create a new task with \`hai task create\`
+- If you find work outside the task's scope, use \`task_create\`
 - Update documentation listed in "Must Update" and check "Check If Affected"
 
 ## Completion
@@ -128,35 +129,34 @@ export class TaskExecutor {
       this.createWorktree(branchName, worktreePath);
       this.activeWorktrees.set(task.id, worktreePath);
 
-      // Persist worktree path
       await this.store.updateTask(task.id, { worktree: worktreePath });
       await this.store.logEntry(task.id, `Worktree created at ${worktreePath}`);
 
       this.options.onStart?.(task, worktreePath);
 
-      // Read the task's PROMPT.md
       const detail = await this.store.getTask(task.id);
 
-      // Initialize steps from PROMPT.md if not already there
+      // Initialize steps from PROMPT.md if empty
       if (detail.steps.length === 0) {
         const steps = await this.store.parseStepsFromPrompt(task.id);
         if (steps.length > 0) {
-          // Write steps via updateStep to trigger the lazy init path
           await this.store.updateStep(task.id, 0, "pending");
         }
       }
 
-      // Build the review_step tool for cross-model review
-      const reviewStepTool = this.createReviewStepTool(
-        task.id, worktreePath, detail.prompt,
-      );
+      // Build custom tools for the worker
+      const customTools = [
+        this.createTaskUpdateTool(task.id),
+        this.createTaskLogTool(task.id),
+        this.createTaskCreateTool(),
+        this.createReviewStepTool(task.id, worktreePath, detail.prompt),
+      ];
 
-      // Create pi agent session in the worktree with review_step tool
       const { session } = await createHaiAgent({
         cwd: worktreePath,
         systemPrompt: EXECUTOR_SYSTEM_PROMPT,
         tools: "coding",
-        customTools: [reviewStepTool],
+        customTools,
         onText: (delta) => this.options.onAgentText?.(task.id, delta),
         onToolStart: (name) => this.options.onAgentTool?.(task.id, name),
       });
@@ -165,7 +165,6 @@ export class TaskExecutor {
         const agentPrompt = buildExecutionPrompt(detail);
         await session.prompt(agentPrompt);
 
-        // Check completion
         const doneCwd = join(worktreePath, ".DONE");
         if (existsSync(doneCwd)) {
           await this.store.logEntry(task.id, "Execution complete — .DONE created");
@@ -190,10 +189,86 @@ export class TaskExecutor {
     }
   }
 
-  /**
-   * Create the review_step tool that the worker calls at step boundaries.
-   * Spawns a separate reviewer pi session with read-only tools.
-   */
+  // ── Custom tools for the worker agent ──────────────────────────────
+
+  private createTaskUpdateTool(taskId: string): ToolDefinition {
+    const store = this.store;
+    return {
+      name: "task_update",
+      label: "Update Step",
+      description:
+        "Update a step's status. Call before starting a step (in-progress), " +
+        "after completing it (done), or to skip it (skipped). " +
+        "The board updates in real-time.",
+      parameters: Type.Object({
+        step: Type.Number({ description: "Step number (0-indexed)" }),
+        status: Type.Union(
+          STEP_STATUSES.map((s) => Type.Literal(s)),
+          { description: "New status: pending, in-progress, done, or skipped" },
+        ),
+      }),
+      execute: async (_id, params) => {
+        const { step, status } = params;
+        const task = await store.updateStep(taskId, step, status as StepStatus);
+        const stepInfo = task.steps[step];
+        const progress = task.steps.filter((s) => s.status === "done").length;
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Step ${step} (${stepInfo.name}) → ${status}. Progress: ${progress}/${task.steps.length} done.`,
+          }],
+          details: {},
+        };
+      },
+    };
+  }
+
+  private createTaskLogTool(taskId: string): ToolDefinition {
+    const store = this.store;
+    return {
+      name: "task_log",
+      label: "Log Entry",
+      description:
+        "Log an important action, decision, or issue for this task. " +
+        "Use for significant events — not every small step.",
+      parameters: Type.Object({
+        message: Type.String({ description: "What happened" }),
+        outcome: Type.Optional(Type.String({ description: "Result or consequence (optional)" })),
+      }),
+      execute: async (_id, params) => {
+        await store.logEntry(taskId, params.message, params.outcome);
+        return {
+          content: [{ type: "text" as const, text: `Logged: ${params.message}` }],
+          details: {},
+        };
+      },
+    };
+  }
+
+  private createTaskCreateTool(): ToolDefinition {
+    const store = this.store;
+    return {
+      name: "task_create",
+      label: "Create Task",
+      description:
+        "Create a new task for out-of-scope work discovered during execution. " +
+        "The task goes into triage where it will be specified by the AI.",
+      parameters: Type.Object({
+        description: Type.String({ description: "What needs to be done" }),
+      }),
+      execute: async (_id, params) => {
+        const task = await store.createTask({ description: params.description });
+        return {
+          content: [{
+            type: "text" as const,
+            text: `Created ${task.id}: ${params.description}`,
+          }],
+          details: {},
+        };
+      },
+    };
+  }
+
   private createReviewStepTool(
     taskId: string,
     worktreePath: string,
@@ -226,28 +301,16 @@ export class TaskExecutor {
         ),
       }),
       execute: async (_toolCallId, params) => {
-        const { step, type: reviewType, step_name, baseline } = params as { step: number; type: "plan" | "code"; step_name: string; baseline?: string };
+        const { step, type: reviewType, step_name, baseline } = params;
 
-        console.log(
-          `[reviewer] ${taskId}: ${reviewType} review for Step ${step} (${step_name})`,
-        );
-        await store.logEntry(
-          taskId,
-          `${reviewType} review requested for Step ${step} (${step_name})`,
-        );
+        console.log(`[reviewer] ${taskId}: ${reviewType} review for Step ${step} (${step_name})`);
+        await store.logEntry(taskId, `${reviewType} review requested for Step ${step} (${step_name})`);
 
         try {
           const result = await reviewStep(
-            worktreePath,
-            taskId,
-            step,
-            step_name,
-            reviewType,
-            promptContent,
-            baseline,
-            {
-              onText: (delta) => options.onAgentText?.(taskId, delta),
-            },
+            worktreePath, taskId, step, step_name,
+            reviewType, promptContent, baseline,
+            { onText: (delta) => options.onAgentText?.(taskId, delta) },
           );
 
           await store.logEntry(
@@ -255,34 +318,20 @@ export class TaskExecutor {
             `${reviewType} review Step ${step}: ${result.verdict}`,
             result.summary,
           );
-
-          console.log(
-            `[reviewer] ${taskId}: Step ${step} ${reviewType} → ${result.verdict}`,
-          );
+          console.log(`[reviewer] ${taskId}: Step ${step} ${reviewType} → ${result.verdict}`);
 
           let text: string;
           switch (result.verdict) {
-            case "APPROVE":
-              text = "APPROVE";
-              break;
-            case "REVISE":
-              text = `REVISE\n\n${result.review}`;
-              break;
-            case "RETHINK":
-              text = `RETHINK\n\n${result.review}`;
-              break;
-            default:
-              text = "UNAVAILABLE — reviewer did not produce a usable verdict.";
+            case "APPROVE": text = "APPROVE"; break;
+            case "REVISE": text = `REVISE\n\n${result.review}`; break;
+            case "RETHINK": text = `RETHINK\n\n${result.review}`; break;
+            default: text = "UNAVAILABLE — reviewer did not produce a usable verdict.";
           }
 
-          return {
-            content: [{ type: "text" as const, text }],
-            details: {},
-          };
+          return { content: [{ type: "text" as const, text }], details: {} };
         } catch (err: any) {
           console.error(`[reviewer] ${taskId}: review failed: ${err.message}`);
           await store.logEntry(taskId, `${reviewType} review failed: ${err.message}`);
-
           return {
             content: [{ type: "text" as const, text: `UNAVAILABLE — reviewer error: ${err.message}` }],
             details: {},
@@ -291,6 +340,8 @@ export class TaskExecutor {
       },
     };
   }
+
+  // ── Worktree management ────────────────────────────────────────────
 
   private createWorktree(branch: string, path: string): void {
     if (existsSync(path)) {
@@ -327,7 +378,6 @@ export class TaskExecutor {
 }
 
 function buildExecutionPrompt(task: TaskDetail): string {
-  // Extract review level from PROMPT.md
   const reviewMatch = task.prompt.match(/##\s*Review Level[:\s]*(\d)/);
   const reviewLevel = reviewMatch ? parseInt(reviewMatch[1], 10) : 0;
 
@@ -341,21 +391,6 @@ ${task.dependencies.length > 0 ? `Dependencies: ${task.dependencies.join(", ")}`
 
 ${task.prompt}
 
-## CLI Commands for this task
-
-Report progress as you work:
-\`\`\`bash
-# Step lifecycle
-hai task update ${task.id} <STEP_NUMBER> in-progress
-hai task update ${task.id} <STEP_NUMBER> done
-
-# Log important actions
-hai task log ${task.id} "what you did"
-
-# Out-of-scope work → new task
-hai task create "description"
-\`\`\`
-
 ## Review level: ${reviewLevel}
 
 ${reviewLevel === 0 ? "No reviews required. Implement directly." : ""}
@@ -368,7 +403,9 @@ ${reviewLevel >= 3 ? `After tests, also call review_step with type="code" for te
 ## Begin
 
 Start with Step 0 (Preflight). Work through each step in order.
-Use \`hai task update\` to report progress on every step transition.
+Use \`task_update\` to report progress on every step transition.
+Use \`task_log\` for important actions and decisions.
+Use \`task_create\` if you find out-of-scope work that needs doing.
 Commit at step boundaries: \`git commit -m "feat(${task.id}): complete Step N — description"\`
 When done: \`echo "done" > .DONE\``;
 }
