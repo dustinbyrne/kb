@@ -1,4 +1,6 @@
 import type { TaskStore, Task, TaskDetail } from "@hai/core";
+import { Type } from "@mariozechner/pi-ai";
+import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { createHaiAgent } from "./pi.js";
 import type { AgentSemaphore } from "./concurrency.js";
 
@@ -120,7 +122,7 @@ tests. Manual verification is NOT a test.
   as part of this task (not just skipping tests)
 
 ## Duplicate check
-Before writing a spec, read \`.hai/tasks/*/task.json\` to see existing tasks.
+Before writing a spec, call \`task_list\` to see existing tasks.
 If a task already covers the same work (even if worded differently), do NOT
 write a PROMPT.md. Instead, write a single line to the output file:
 \`DUPLICATE: {existing-task-id}\`
@@ -211,6 +213,7 @@ export class TriageProcessor {
           cwd: this.rootDir,
           systemPrompt: TRIAGE_SYSTEM_PROMPT,
           tools: "coding",
+          customTools: this.createTriageTools(),
           onText: (delta) => this.options.onAgentText?.(task.id, delta),
           onToolStart: (name) =>
             console.log(`[triage] ${task.id} tool: ${name}`),
