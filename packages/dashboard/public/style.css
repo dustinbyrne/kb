@@ -82,7 +82,13 @@ html, body {
   height: calc(100vh - 57px);
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
 }
+
+.board::-webkit-scrollbar { height: 6px; }
+.board::-webkit-scrollbar-track { background: transparent; }
+.board::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
 .column {
   display: flex;
