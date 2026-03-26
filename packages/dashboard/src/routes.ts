@@ -108,6 +108,23 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
     }
   });
 
+  // Retry failed task
+  router.post("/tasks/:id/retry", async (req, res) => {
+    try {
+      const task = await store.getTask(req.params.id);
+      if (task.column !== "in-progress" || task.status !== "failed") {
+        res.status(400).json({ error: "Task is not in a failed state" });
+        return;
+      }
+      await store.updateTask(req.params.id, { status: undefined });
+      await store.logEntry(req.params.id, "Retry requested from dashboard");
+      const updated = await store.moveTask(req.params.id, "todo");
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Upload attachment
   router.post("/tasks/:id/attachments", upload.single("file"), async (req, res) => {
     try {

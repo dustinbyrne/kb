@@ -15,7 +15,7 @@ function AppInner() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(2);
   const [autoMerge, setAutoMerge] = useState(false);
-  const { tasks, createTask, moveTask, deleteTask, mergeTask } = useTasks();
+  const { tasks, createTask, moveTask, deleteTask, mergeTask, retryTask } = useTasks();
 
   useEffect(() => {
     fetchConfig()
@@ -78,6 +78,7 @@ function AppInner() {
           onMoveTask={moveTask}
           onDeleteTask={deleteTask}
           onMergeTask={mergeTask}
+          onRetryTask={retryTask}
           addToast={addToast}
         />
       )}

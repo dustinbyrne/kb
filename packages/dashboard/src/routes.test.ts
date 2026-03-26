@@ -16,6 +16,7 @@ function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
     mergeTask: vi.fn(),
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn(),
+    logEntry: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as TaskStore;
 }
@@ -140,6 +141,61 @@ describe("GET /tasks/:id", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error).toContain("Unexpected end of JSON input");
+  });
+});
+
+describe("POST /tasks/:id/retry", () => {
+  let store: TaskStore;
+
+  beforeEach(() => {
+    store = createMockStore();
+  });
+
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store));
+    return app;
+  }
+
+  it("retries a failed task and moves it to todo", async () => {
+    const failedTask = { ...FAKE_TASK_DETAIL, status: "failed" };
+    const movedTask = { ...FAKE_TASK_DETAIL, column: "todo", status: undefined };
+    (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(failedTask);
+    (store.updateTask as ReturnType<typeof vi.fn>).mockResolvedValue(failedTask);
+    (store.moveTask as ReturnType<typeof vi.fn>).mockResolvedValue(movedTask);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(200);
+    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", { status: undefined });
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "todo");
+  });
+
+  it("returns 400 when task is not in failed state", async () => {
+    const activeTask = { ...FAKE_TASK_DETAIL, status: "executing" };
+    (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(activeTask);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("not in a failed state");
+  });
+
+  it("returns 400 when task is not in in-progress column", async () => {
+    const doneTask = { ...FAKE_TASK_DETAIL, column: "done", status: "failed" };
+    (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(doneTask);
+
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("not in a failed state");
   });
 });
 

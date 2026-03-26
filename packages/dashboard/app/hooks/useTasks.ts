@@ -68,5 +68,9 @@ export function useTasks() {
     return api.mergeTask(id);
   }, []);
 
-  return { tasks, createTask, moveTask, deleteTask, mergeTask };
+  const retryTask = useCallback(async (id: string): Promise<Task> => {
+    return api.retryTask(id);
+  }, []);
+
+  return { tasks, createTask, moveTask, deleteTask, mergeTask, retryTask };
 }

@@ -13,8 +13,9 @@ const ACTIVE_STATUSES = new Set(["planning", "researching", "executing", "finali
 /** Mirrors the cardClass computation from TaskCard.tsx */
 function computeCardClass(opts: { dragging?: boolean; queued?: boolean; status?: string; column?: Column }): string {
   const { dragging = false, queued = false, status, column = "todo" } = opts;
-  const isAgentActive = !queued && (column === "in-progress" || ACTIVE_STATUSES.has(status as string));
-  return `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}`;
+  const isFailed = status === "failed";
+  const isAgentActive = !queued && !isFailed && (column === "in-progress" || ACTIVE_STATUSES.has(status as string));
+  return `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}${isFailed ? " failed" : ""}`;
 }
 
 describe("TaskCard agent-active class", () => {
@@ -88,6 +89,45 @@ describe("TaskCard agent-active class", () => {
     const cls = computeCardClass({ column: "in-progress", queued: true });
     expect(cls).not.toContain("agent-active");
     expect(cls).toContain("queued");
+  });
+
+  it("does NOT apply agent-active when status is 'failed' even in in-progress column", () => {
+    const cls = computeCardClass({ column: "in-progress", status: "failed" });
+    expect(cls).not.toContain("agent-active");
+    expect(cls).toContain("failed");
+  });
+});
+
+describe("TaskCard failed status", () => {
+  it("applies 'failed' class to card when status is 'failed'", () => {
+    const cls = computeCardClass({ status: "failed", column: "in-progress" });
+    expect(cls).toContain("failed");
+    expect(cls).not.toContain("agent-active");
+  });
+
+  it("does NOT apply 'failed' class for non-failed statuses", () => {
+    const cls = computeCardClass({ status: "executing", column: "in-progress" });
+    expect(cls).not.toContain("failed");
+  });
+
+  it("does NOT apply 'failed' class when status is undefined", () => {
+    const cls = computeCardClass({ column: "in-progress" });
+    expect(cls).not.toContain("failed");
+  });
+
+  /** Mirrors the badge style condition from TaskCard.tsx */
+  function shouldShowFailedBadge(status?: string | null): boolean {
+    return status === "failed";
+  }
+
+  it("shows failed badge when status is 'failed'", () => {
+    expect(shouldShowFailedBadge("failed")).toBe(true);
+  });
+
+  it("does NOT show failed badge for other statuses", () => {
+    expect(shouldShowFailedBadge("executing")).toBe(false);
+    expect(shouldShowFailedBadge(undefined)).toBe(false);
+    expect(shouldShowFailedBadge(null)).toBe(false);
   });
 });
 

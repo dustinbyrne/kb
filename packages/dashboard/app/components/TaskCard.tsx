@@ -51,8 +51,9 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
     }
   }, [task.id, onOpenDetail, addToast]);
 
-  const isAgentActive = !queued && (task.column === "in-progress" || ACTIVE_STATUSES.has(task.status as string));
-  const cardClass = `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}`;
+  const isFailed = task.status === "failed";
+  const isAgentActive = !queued && !isFailed && (task.column === "in-progress" || ACTIVE_STATUSES.has(task.status as string));
+  const cardClass = `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}${isFailed ? " failed" : ""}`;
 
   return (
     <div
@@ -67,11 +68,11 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
         <span className="card-id">{task.id}</span>
         {task.status && task.status !== "queued" && (
           <span
-            className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}`}
-            style={{
-              background: COLUMN_COLOR_MAP[task.column],
-              color: COLUMN_TEXT_COLOR_MAP[task.column],
-            }}
+            className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}${isFailed ? " failed" : ""}`}
+            style={isFailed
+              ? { background: "rgba(218,54,51,0.15)", color: "#da3633" }
+              : { background: COLUMN_COLOR_MAP[task.column], color: COLUMN_TEXT_COLOR_MAP[task.column] }
+            }
           >
             {task.status}
           </span>

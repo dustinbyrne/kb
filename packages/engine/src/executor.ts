@@ -351,6 +351,7 @@ export class TaskExecutor {
     } catch (err: any) {
       console.error(`[executor] ✗ ${task.id} execution failed:`, err.message);
       await this.store.logEntry(task.id, `Execution failed: ${err.message}`);
+      await this.store.updateTask(task.id, { status: "failed" });
       this.options.onError?.(task, err);
     } finally {
       this.executing.delete(task.id);

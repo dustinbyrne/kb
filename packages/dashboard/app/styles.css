@@ -87,6 +87,13 @@ html, body {
 }
 .btn-danger:hover { background: #f85149; }
 
+.btn-warning {
+  background: #d29922;
+  border-color: #e3b341;
+  color: #fff;
+}
+.btn-warning:hover { background: #e3b341; }
+
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 
 /* === Board === */
@@ -254,6 +261,15 @@ html, body {
 
 .card-status-badge.pulsing {
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+.card-status-badge.failed {
+  background: rgba(218,54,51,0.15);
+  color: #da3633;
+}
+
+.card.failed {
+  border-left: 3px solid #da3633;
 }
 
 @keyframes pulse {

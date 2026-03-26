@@ -143,6 +143,31 @@ describe("TaskExecutor with semaphore", () => {
     expect(onError).toHaveBeenCalled();
   });
 
+  it("sets task status to 'failed' when execution throws", async () => {
+    const store = createMockStore();
+
+    mockedCreateHaiAgent.mockRejectedValue(new Error("agent crashed"));
+
+    const onError = vi.fn();
+    const executor = new TaskExecutor(store, "/tmp/test", { onError });
+
+    await executor.execute({
+      id: "HAI-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", { status: "failed" });
+    expect(onError).toHaveBeenCalled();
+  });
+
   it("concurrent executions respect semaphore limit", async () => {
     const sem = new AgentSemaphore(1);
     const store = createMockStore();

@@ -22,6 +22,7 @@ const noop = vi.fn();
 const noopMove = vi.fn(async () => ({}) as Task);
 const noopDelete = vi.fn(async () => ({}) as Task);
 const noopMerge = vi.fn(async () => ({ merged: false }) as MergeResult);
+const noopRetry = vi.fn(async () => ({}) as Task);
 
 describe("TaskDetailModal", () => {
   it("renders markdown-body without detail-prompt class when prompt exists", () => {
@@ -89,6 +90,53 @@ describe("TaskDetailModal", () => {
     );
 
     expect(screen.queryByText("PROMPT.md")).toBeNull();
+  });
+
+  it("renders Retry button when task status is 'failed'", () => {
+    render(
+      <TaskDetailModal
+        task={makeTask({ status: "failed" })}
+        onClose={noop}
+        onMoveTask={noopMove}
+        onDeleteTask={noopDelete}
+        onMergeTask={noopMerge}
+        onRetryTask={noopRetry}
+        addToast={noop}
+      />,
+    );
+
+    expect(screen.getByText("Retry")).toBeTruthy();
+  });
+
+  it("does NOT render Retry button when task status is not 'failed'", () => {
+    render(
+      <TaskDetailModal
+        task={makeTask({ status: "executing" })}
+        onClose={noop}
+        onMoveTask={noopMove}
+        onDeleteTask={noopDelete}
+        onMergeTask={noopMerge}
+        onRetryTask={noopRetry}
+        addToast={noop}
+      />,
+    );
+
+    expect(screen.queryByText("Retry")).toBeNull();
+  });
+
+  it("does NOT render Retry button when onRetryTask is not provided", () => {
+    render(
+      <TaskDetailModal
+        task={makeTask({ status: "failed" })}
+        onClose={noop}
+        onMoveTask={noopMove}
+        onDeleteTask={noopDelete}
+        onMergeTask={noopMerge}
+        addToast={noop}
+      />,
+    );
+
+    expect(screen.queryByText("Retry")).toBeNull();
   });
 
   it("shows description exactly once for a task without title", () => {

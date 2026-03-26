@@ -33,6 +33,7 @@ interface TaskDetailModalProps {
   onMoveTask: (id: string, column: Column) => Promise<Task>;
   onDeleteTask: (id: string) => Promise<Task>;
   onMergeTask: (id: string) => Promise<MergeResult>;
+  onRetryTask?: (id: string) => Promise<Task>;
   addToast: (message: string, type?: ToastType) => void;
 }
 
@@ -42,6 +43,7 @@ export function TaskDetailModal({
   onMoveTask,
   onDeleteTask,
   onMergeTask,
+  onRetryTask,
   addToast,
 }: TaskDetailModalProps) {
   const [attachments, setAttachments] = useState<TaskAttachment[]>(task.attachments || []);
@@ -101,6 +103,17 @@ export function TaskDetailModal({
         addToast(err.message, "error");
       });
   }, [task.id, onMergeTask, onClose, addToast]);
+
+  const handleRetry = useCallback(async () => {
+    if (!onRetryTask) return;
+    try {
+      await onRetryTask(task.id);
+      onClose();
+      addToast(`Retrying ${task.id}...`, "info");
+    } catch (err: any) {
+      addToast(err.message, "error");
+    }
+  }, [task.id, onRetryTask, onClose, addToast]);
 
   const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -270,6 +283,11 @@ export function TaskDetailModal({
           <button className="btn btn-danger btn-sm" onClick={handleDelete}>
             Delete
           </button>
+          {task.status === "failed" && onRetryTask && (
+            <button className="btn btn-warning btn-sm" onClick={handleRetry}>
+              Retry
+            </button>
+          )}
           <div style={{ flex: 1 }} />
           {task.column === "in-review" ? (
             <>

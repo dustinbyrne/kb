@@ -52,6 +52,10 @@ export function mergeTask(id: string): Promise<MergeResult> {
   return api<MergeResult>(`/tasks/${id}/merge`, { method: "POST" });
 }
 
+export function retryTask(id: string): Promise<Task> {
+  return api<Task>(`/tasks/${id}/retry`, { method: "POST" });
+}
+
 export function fetchConfig(): Promise<{ maxConcurrent: number }> {
   return api<{ maxConcurrent: number }>("/config");
 }
