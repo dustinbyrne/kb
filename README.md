@@ -18,7 +18,7 @@ AI-orchestrated task board. Like Trello, but your tasks get specified, executed,
 1. **Triage** — Throw rough ideas in. Pi picks them up and writes a proper task spec.
 2. **Todo** — Fully specified, ready to go. Scheduler moves them when deps are met.
 3. **In Progress** — Pi works the task in an isolated git worktree.
-4. **In Review** — Work is done. Merge the worktree and close.
+4. **In Review** — Work is done. Merge the worktree and close. Toggle **Auto-merge** in the column header to automatically merge tasks as they arrive.
 5. **Done** — Shipped.
 
 Tasks with dependencies are processed sequentially. Independent tasks run in parallel.

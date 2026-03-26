@@ -19,9 +19,11 @@ interface ColumnProps {
   onCancelCreate?: () => void;
   onCreateTask?: (input: TaskCreateInput) => Promise<Task>;
   onNewTask?: () => void;
+  autoMerge?: boolean;
+  onToggleAutoMerge?: () => void;
 }
 
-export function Column({ column, tasks, allTasks, maxConcurrent, onMoveTask, onOpenDetail, addToast, isCreating, onCancelCreate, onCreateTask, onNewTask }: ColumnProps) {
+export function Column({ column, tasks, allTasks, maxConcurrent, onMoveTask, onOpenDetail, addToast, isCreating, onCancelCreate, onCreateTask, onNewTask, autoMerge, onToggleAutoMerge }: ColumnProps) {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -62,6 +64,17 @@ export function Column({ column, tasks, allTasks, maxConcurrent, onMoveTask, onO
         <div className={`column-dot dot-${column}`} />
         <h2>{COLUMN_LABELS[column]}</h2>
         <span className="column-count">{tasks.length}</span>
+        {column === "in-review" && onToggleAutoMerge && (
+          <label className="auto-merge-toggle" title={autoMerge ? "Auto-merge enabled" : "Auto-merge disabled"}>
+            <input
+              type="checkbox"
+              checked={!!autoMerge}
+              onChange={onToggleAutoMerge}
+            />
+            <span className="toggle-slider" />
+            <span className="toggle-label">Auto-merge</span>
+          </label>
+        )}
         {onNewTask && (
           <button className="btn btn-primary btn-sm" onClick={onNewTask}>
             + New Task

@@ -719,3 +719,53 @@ html, body {
   border-radius: var(--radius);
   margin: 4px;
 }
+
+/* Auto-merge toggle */
+.auto-merge-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  margin-left: auto;
+}
+
+.auto-merge-toggle input {
+  display: none;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  background: var(--border);
+  border-radius: 8px;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: var(--card);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.auto-merge-toggle input:checked + .toggle-slider {
+  background: var(--in-review);
+}
+
+.auto-merge-toggle input:checked + .toggle-slider::after {
+  transform: translateX(12px);
+}
+
+.toggle-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}

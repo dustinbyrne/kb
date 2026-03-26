@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import type { TaskDetail, TaskCreateInput, Task } from "@hai/core";
-import { fetchConfig } from "./api";
+import { fetchConfig, fetchSettings, updateSettings } from "./api";
 import { Header } from "./components/Header";
 import { Board } from "./components/Board";
 import { TaskDetailModal } from "./components/TaskDetailModal";
@@ -14,11 +14,15 @@ function AppInner() {
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [maxConcurrent, setMaxConcurrent] = useState(2);
+  const [autoMerge, setAutoMerge] = useState(false);
   const { tasks, createTask, moveTask, deleteTask, mergeTask } = useTasks();
 
   useEffect(() => {
     fetchConfig()
       .then((cfg) => setMaxConcurrent(cfg.maxConcurrent))
+      .catch(() => {/* keep default */});
+    fetchSettings()
+      .then((s) => setAutoMerge(!!s.autoMerge))
       .catch(() => {/* keep default */});
   }, []);
   const { toasts, addToast, removeToast } = useToast();
@@ -34,6 +38,16 @@ function AppInner() {
     },
     [createTask],
   );
+
+  const handleToggleAutoMerge = useCallback(async () => {
+    const next = !autoMerge;
+    setAutoMerge(next);
+    try {
+      await updateSettings({ autoMerge: next });
+    } catch {
+      setAutoMerge(!next); // revert on failure
+    }
+  }, [autoMerge]);
 
   const handleDetailOpen = useCallback((task: TaskDetail) => {
     setDetailTask(task);
@@ -54,6 +68,8 @@ function AppInner() {
         onCancelCreate={handleCancelCreate}
         onCreateTask={handleCreateTask}
         onNewTask={handleCreateOpen}
+        autoMerge={autoMerge}
+        onToggleAutoMerge={handleToggleAutoMerge}
       />
       {detailTask && (
         <TaskDetailModal

@@ -47,6 +47,7 @@ export interface Settings {
   maxWorktrees: number;
   pollIntervalMs: number;
   groupOverlappingFiles: boolean;
+  autoMerge: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -54,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxWorktrees: 4,
   pollIntervalMs: 15000,
   groupOverlappingFiles: false,
+  autoMerge: false,
 };
 
 export interface BoardConfig {

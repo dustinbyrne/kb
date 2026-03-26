@@ -226,7 +226,7 @@ export class TaskExecutor {
         ),
       }),
       execute: async (_toolCallId, params) => {
-        const { step, type: reviewType, step_name, baseline } = params;
+        const { step, type: reviewType, step_name, baseline } = params as { step: number; type: "plan" | "code"; step_name: string; baseline?: string };
 
         console.log(
           `[reviewer] ${taskId}: ${reviewType} review for Step ${step} (${step_name})`,

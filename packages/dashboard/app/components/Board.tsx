@@ -13,9 +13,11 @@ interface BoardProps {
   onCancelCreate: () => void;
   onCreateTask: (input: TaskCreateInput) => Promise<Task>;
   onNewTask: () => void;
+  autoMerge: boolean;
+  onToggleAutoMerge: () => void;
 }
 
-export function Board({ tasks, maxConcurrent, onMoveTask, onOpenDetail, addToast, isCreating, onCancelCreate, onCreateTask, onNewTask }: BoardProps) {
+export function Board({ tasks, maxConcurrent, onMoveTask, onOpenDetail, addToast, isCreating, onCancelCreate, onCreateTask, onNewTask, autoMerge, onToggleAutoMerge }: BoardProps) {
   return (
     <main className="board" id="board">
       {COLUMNS.map((col) => (
@@ -29,6 +31,7 @@ export function Board({ tasks, maxConcurrent, onMoveTask, onOpenDetail, addToast
           onOpenDetail={onOpenDetail}
           addToast={addToast}
           {...(col === "triage" ? { isCreating, onCancelCreate, onCreateTask, onNewTask } : {})}
+          {...(col === "in-review" ? { autoMerge, onToggleAutoMerge } : {})}
         />
       ))}
     </main>

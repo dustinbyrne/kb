@@ -24,6 +24,20 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
       onAgentTool: (name) => console.log(`[merger] tool: ${name}`),
     });
 
+  // Auto-merge: when a task lands in "in-review" and autoMerge is enabled, merge it
+  store.on("task:moved", async ({ task, to }) => {
+    if (to !== "in-review") return;
+    try {
+      const settings = await store.getSettings();
+      if (!settings.autoMerge) return;
+      console.log(`[auto-merge] Merging ${task.id}...`);
+      await onMerge(task.id);
+      console.log(`[auto-merge] ✓ ${task.id} merged`);
+    } catch (err: any) {
+      console.log(`[auto-merge] ✗ ${task.id}: ${err.message ?? err}`);
+    }
+  });
+
   // Start the web server with AI merge wired in
   const app = createServer(store, { onMerge });
 

@@ -16,7 +16,7 @@ export interface ServerOptions {
   maxConcurrent?: number;
 }
 
-export function createServer(store: TaskStore, options?: ServerOptions) {
+export function createServer(store: TaskStore, options?: ServerOptions): ReturnType<typeof express> {
   const app = express();
   app.use(express.json());
 
