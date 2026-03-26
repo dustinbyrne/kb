@@ -30,7 +30,8 @@ vi.mock("node:fs", () => ({
 import { TaskExecutor, buildExecutionPrompt } from "./executor.js";
 import { createHaiAgent } from "./pi.js";
 import { execSync } from "node:child_process";
-import { findWorktreeUser } from "./merger.js";
+import { findWorktreeUser, aiMergeTask } from "./merger.js";
+import { WorktreePool } from "./worktree-pool.js";
 import type { Column, Task, TaskDetail } from "@hai/core";
 
 const mockedCreateHaiAgent = vi.mocked(createHaiAgent);

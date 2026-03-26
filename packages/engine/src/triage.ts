@@ -1,6 +1,6 @@
 import type { TaskStore, Task, TaskDetail, TaskAttachment, Settings } from "@hai/core";
 import type { ImageContent } from "@mariozechner/pi-ai";
-import { Type } from "@mariozechner/pi-ai";
+import { Type, type Static } from "@mariozechner/pi-ai";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { createHaiAgent } from "./pi.js";
 import type { AgentSemaphore } from "./concurrency.js";
