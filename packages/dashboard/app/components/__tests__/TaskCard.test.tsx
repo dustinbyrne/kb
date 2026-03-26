@@ -90,3 +90,46 @@ describe("TaskCard agent-active class", () => {
     expect(cls).toContain("queued");
   });
 });
+
+describe("TaskCard queued badge logic", () => {
+  /** Mirrors the card-status-badge visibility condition from TaskCard.tsx */
+  function shouldShowStatusBadge(status?: string | null): boolean {
+    return !!status && status !== "queued";
+  }
+
+  /** Mirrors the queued-badge visibility condition from TaskCard.tsx */
+  function shouldShowQueuedBadge(opts: { queued?: boolean; status?: string | null }): boolean {
+    return !!(opts.queued || opts.status === "queued");
+  }
+
+  it("shows queued-badge when queued prop is true", () => {
+    expect(shouldShowQueuedBadge({ queued: true })).toBe(true);
+  });
+
+  it("shows queued-badge when task.status is 'queued'", () => {
+    expect(shouldShowQueuedBadge({ status: "queued" })).toBe(true);
+  });
+
+  it("shows queued-badge when both queued prop and status are set", () => {
+    expect(shouldShowQueuedBadge({ queued: true, status: "queued" })).toBe(true);
+  });
+
+  it("does NOT show queued-badge when neither queued prop nor status is 'queued'", () => {
+    expect(shouldShowQueuedBadge({ queued: false, status: "executing" })).toBe(false);
+    expect(shouldShowQueuedBadge({})).toBe(false);
+  });
+
+  it("does NOT show card-status-badge when status is 'queued'", () => {
+    expect(shouldShowStatusBadge("queued")).toBe(false);
+  });
+
+  it("shows card-status-badge for non-queued statuses", () => {
+    expect(shouldShowStatusBadge("executing")).toBe(true);
+    expect(shouldShowStatusBadge("planning")).toBe(true);
+  });
+
+  it("does NOT show card-status-badge when status is null/undefined", () => {
+    expect(shouldShowStatusBadge(null)).toBe(false);
+    expect(shouldShowStatusBadge(undefined)).toBe(false);
+  });
+});

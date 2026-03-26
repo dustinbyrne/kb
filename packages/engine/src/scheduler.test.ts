@@ -122,3 +122,70 @@ describe("Scheduler concurrency", () => {
     expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
   });
 });
+
+describe("Scheduler file-scope overlap", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("sets status 'queued' for a todo task deferred due to file scope overlap", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "in-progress" }),
+      makeTask({ id: "HAI-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    // Enable file scope grouping
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: true,
+      autoMerge: false,
+    });
+    // Both tasks share overlapping file scopes
+    store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
+      if (id === "HAI-001") return ["packages/shared/utils.ts"];
+      if (id === "HAI-002") return ["packages/shared/utils.ts"];
+      return [];
+    });
+
+    const scheduler = new Scheduler(store, { maxConcurrent: 3 });
+    await runSchedule(scheduler);
+
+    // HAI-002 should NOT be moved to in-progress (deferred)
+    expect(store.moveTask).not.toHaveBeenCalled();
+    // HAI-002 should have status set to "queued"
+    expect(store.updateTask).toHaveBeenCalledWith("HAI-002", { status: "queued" });
+  });
+
+  it("does not set status 'queued' when file scopes do not overlap", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "in-progress" }),
+      makeTask({ id: "HAI-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: true,
+      autoMerge: false,
+    });
+    store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
+      if (id === "HAI-001") return ["packages/a/file.ts"];
+      if (id === "HAI-002") return ["packages/b/file.ts"];
+      return [];
+    });
+
+    const scheduler = new Scheduler(store, { maxConcurrent: 3 });
+    await runSchedule(scheduler);
+
+    // HAI-002 should be moved (no overlap)
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+  });
+});

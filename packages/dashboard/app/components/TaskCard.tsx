@@ -65,7 +65,7 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
     >
       <div className="card-header">
         <span className="card-id">{task.id}</span>
-        {task.status && (
+        {task.status && task.status !== "queued" && (
           <span
             className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}`}
             style={{
@@ -98,14 +98,14 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
           </div>
         );
       })()}
-      {((task.dependencies && task.dependencies.length > 0) || queued) && (
+      {((task.dependencies && task.dependencies.length > 0) || queued || task.status === "queued") && (
         <div className="card-meta">
           {task.dependencies && task.dependencies.length > 0 && (
             <span className="card-dep-badge">
               <Link size={12} style={{ verticalAlign: 'middle' }} /> {task.dependencies.length} dep{task.dependencies.length > 1 ? "s" : ""}
             </span>
           )}
-          {queued && <span className="queued-badge"><Clock size={12} style={{ verticalAlign: 'middle' }} /> Queued</span>}
+          {(queued || task.status === "queued") && <span className="queued-badge"><Clock size={12} style={{ verticalAlign: 'middle' }} /> Queued</span>}
         </div>
       )}
     </div>
