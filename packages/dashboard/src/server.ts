@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { TaskStore, MergeResult } from "@hai/core";
 import { createApiRoutes } from "./routes.js";
 import { createSSE } from "./sse.js";
+import { rateLimit, RATE_LIMITS } from "./rate-limit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -28,8 +29,11 @@ export function createServer(store: TaskStore, options?: ServerOptions) {
 
   app.use(express.static(clientDir));
 
-  // SSE endpoint
-  app.get("/api/events", createSSE(store));
+  // Rate limiting — stricter limit on SSE connections
+  app.get("/api/events", rateLimit(RATE_LIMITS.sse), createSSE(store));
+
+  // Rate limiting — mutation endpoints (POST/PUT/PATCH/DELETE)
+  app.use("/api", rateLimit(RATE_LIMITS.api));
 
   // REST API
   app.use("/api", createApiRoutes(store, options));

@@ -88,6 +88,26 @@ Real-time kanban board at `localhost:4040`:
 - Click cards for detail view with move/delete actions
 - Server-Sent Events for live updates across tabs
 
+### API Rate Limiting
+
+All API endpoints (`/api/*`) are rate limited to prevent abuse. Limits are applied per client IP:
+
+| Scope | Limit | Window |
+|-------|-------|--------|
+| General API (`/api/*`) | 100 requests | 1 minute |
+| SSE connections (`/api/events`) | 10 connections | 1 minute |
+
+Every API response includes standard rate limit headers:
+
+| Header | Description |
+|--------|-------------|
+| `RateLimit-Limit` | Maximum requests allowed per window |
+| `RateLimit-Remaining` | Requests remaining in the current window |
+| `RateLimit-Reset` | Seconds until the rate limit window resets |
+| `Retry-After` | Seconds to wait before retrying (only on 429 responses) |
+
+When a client exceeds the limit, the API returns `429 Too Many Requests`.
+
 ### AI Engine (`--engine`)
 
 When enabled, three components run:
