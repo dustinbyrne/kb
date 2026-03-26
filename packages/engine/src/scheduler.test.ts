@@ -383,6 +383,62 @@ describe("Scheduler file-scope overlap", () => {
   });
 });
 
+describe("Scheduler paused tasks", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("does not schedule paused todo tasks", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "todo", paused: true }),
+    ];
+    const store = createMockStore(tasks);
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+
+    expect(store.moveTask).not.toHaveBeenCalled();
+  });
+
+  it("schedules non-paused todo tasks normally", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "todo", paused: false }),
+    ];
+    const store = createMockStore(tasks);
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "in-progress");
+  });
+
+  it("does not count paused specifying tasks toward agent slots", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "triage", status: "specifying", paused: true }),
+      makeTask({ id: "HAI-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 1 });
+
+    await runSchedule(scheduler);
+
+    // The paused specifying task doesn't consume a slot, so HAI-002 should be scheduled
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+  });
+});
+
 describe("Scheduler worktree limit logging", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -550,3 +550,40 @@ describe("POST /auth/logout", () => {
     expect(res.body.error).toBe("logout failed");
   });
 });
+
+describe("Pause/Unpause endpoints", () => {
+  let store: TaskStore;
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store));
+    return app;
+  }
+
+  beforeEach(() => {
+    store = createMockStore({
+      pauseTask: vi.fn().mockResolvedValue({ id: "HAI-001", paused: true }),
+    });
+  });
+
+  it("POST /tasks/:id/pause — pauses a task", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/pause");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: "HAI-001", paused: true });
+    expect(store.pauseTask).toHaveBeenCalledWith("HAI-001", true);
+  });
+
+  it("POST /tasks/:id/unpause — unpauses a task", async () => {
+    (store.pauseTask as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "HAI-001" });
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/unpause");
+    expect(res.status).toBe(200);
+    expect(store.pauseTask).toHaveBeenCalledWith("HAI-001", false);
+  });
+
+  it("POST /tasks/:id/pause — returns 500 on error", async () => {
+    (store.pauseTask as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("not found"));
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/pause");
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("not found");
+  });
+});

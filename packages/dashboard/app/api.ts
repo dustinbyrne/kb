@@ -63,6 +63,14 @@ export function retryTask(id: string): Promise<Task> {
   return api<Task>(`/tasks/${id}/retry`, { method: "POST" });
 }
 
+export function pauseTask(id: string): Promise<Task> {
+  return api<Task>(`/tasks/${id}/pause`, { method: "POST" });
+}
+
+export function unpauseTask(id: string): Promise<Task> {
+  return api<Task>(`/tasks/${id}/unpause`, { method: "POST" });
+}
+
 export function fetchConfig(): Promise<{ maxConcurrent: number }> {
   return api<{ maxConcurrent: number }>("/config");
 }

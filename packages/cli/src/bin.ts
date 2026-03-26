@@ -39,7 +39,7 @@ if (isBunBinary) {
 
 // Dynamic imports so the pi-coding-agent config module sees PI_PACKAGE_DIR
 const { runDashboard } = await import("./commands/dashboard.js");
-const { runTaskCreate, runTaskList, runTaskMove, runTaskMerge, runTaskUpdate, runTaskLog, runTaskShow, runTaskAttach } = await import("./commands/task.js");
+const { runTaskCreate, runTaskList, runTaskMove, runTaskMerge, runTaskUpdate, runTaskLog, runTaskShow, runTaskAttach, runTaskPause, runTaskUnpause } = await import("./commands/task.js");
 
 const HELP = `
 hai — AI-orchestrated task board
@@ -54,6 +54,8 @@ Usage:
   hai task log <id> <message>          Add a log entry
   hai task merge <id>                  Merge an in-review task and close it
   hai task attach <id> <file>          Attach a file to a task
+  hai task pause <id>                  Pause a task (stops all automation)
+  hai task unpause <id>                Unpause a task (resumes automation)
 
 Options:
   --port, -p <port>          Dashboard port (default: 4040)
@@ -159,6 +161,18 @@ async function main() {
               process.exit(1);
             }
             await runTaskAttach(id, file);
+            break;
+          }
+          case "pause": {
+            const id = args[2];
+            if (!id) { console.error("Usage: hai task pause <id>"); process.exit(1); }
+            await runTaskPause(id);
+            break;
+          }
+          case "unpause": {
+            const id = args[2];
+            if (!id) { console.error("Usage: hai task unpause <id>"); process.exit(1); }
+            await runTaskUnpause(id);
             break;
           }
           default:

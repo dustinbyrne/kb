@@ -44,6 +44,12 @@ pnpm dev task list
 # Move a task
 pnpm dev task move HAI-001 todo
 
+# Pause a task (stops all automation)
+pnpm dev task pause HAI-001
+
+# Unpause a task (resumes automation)
+pnpm dev task unpause HAI-001
+
 # Attach a file to a task (images, logs, configs)
 pnpm dev task attach HAI-001 ./screenshot.png
 

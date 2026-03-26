@@ -225,6 +225,26 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
     }
   });
 
+  // Pause task
+  router.post("/tasks/:id/pause", async (req, res) => {
+    try {
+      const task = await store.pauseTask(req.params.id, true);
+      res.json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Unpause task
+  router.post("/tasks/:id/unpause", async (req, res) => {
+    try {
+      const task = await store.pauseTask(req.params.id, false);
+      res.json(task);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Update task
   router.patch("/tasks/:id", async (req, res) => {
     try {

@@ -226,7 +226,7 @@ export class TriageProcessor {
 
       const tasks = await this.store.listTasks();
       const triageTasks = tasks.filter(
-        (t) => t.column === "triage" && !this.processing.has(t.id),
+        (t) => t.column === "triage" && !this.processing.has(t.id) && !t.paused,
       );
 
       for (const task of triageTasks) {

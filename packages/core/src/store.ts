@@ -284,7 +284,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   async updateTask(
     id: string,
-    updates: { title?: string; description?: string; prompt?: string; worktree?: string; status?: string | null; dependencies?: string[]; blockedBy?: string | null },
+    updates: { title?: string; description?: string; prompt?: string; worktree?: string; status?: string | null; dependencies?: string[]; blockedBy?: string | null; paused?: boolean },
   ): Promise<Task> {
     return this.withTaskLock(id, async () => {
       const dir = this.taskDir(id);
@@ -304,6 +304,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       } else if (updates.blockedBy !== undefined) {
         task.blockedBy = updates.blockedBy;
       }
+      if (updates.paused !== undefined) task.paused = updates.paused || undefined;
       task.updatedAt = new Date().toISOString();
 
       await this.atomicWriteTaskJson(dir, task);
@@ -314,6 +315,36 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       if (updates.prompt !== undefined) {
         await writeFile(join(dir, "PROMPT.md"), updates.prompt);
       }
+
+      this.emit("task:updated", task);
+      return task;
+    });
+  }
+
+  /**
+   * Pause or unpause a task. Paused tasks are excluded from all automated
+   * agent and scheduler interaction. Logs the action and emits `task:updated`.
+   */
+  async pauseTask(id: string, paused: boolean): Promise<Task> {
+    return this.withTaskLock(id, async () => {
+      const dir = this.taskDir(id);
+      const task = await this.readTaskJson(dir);
+
+      task.paused = paused || undefined;
+      // When pausing an in-progress task, set status so the UI can show the state.
+      // When unpausing, clear the "paused" status.
+      if (task.column === "in-progress") {
+        task.status = paused ? "paused" : undefined;
+      }
+      const now = new Date().toISOString();
+      task.updatedAt = now;
+      task.log.push({
+        timestamp: now,
+        action: paused ? "Task paused" : "Task unpaused",
+      });
+
+      await this.atomicWriteTaskJson(dir, task);
+      if (this.watcher) this.taskCache.set(id, { ...task });
 
       this.emit("task:updated", task);
       return task;

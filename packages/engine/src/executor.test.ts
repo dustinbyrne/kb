@@ -39,12 +39,16 @@ const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
 
 function createMockStore() {
   const listeners = new Map<string, Function[]>();
-  return {
+  const store = {
     on: vi.fn((event: string, fn: Function) => {
       const existing = listeners.get(event) || [];
       existing.push(fn);
       listeners.set(event, existing);
     }),
+    /** Trigger registered listeners for an event (test helper). */
+    _trigger(event: string, ...args: any[]) {
+      for (const fn of listeners.get(event) || []) fn(...args);
+    },
     emit: vi.fn(),
     listTasks: vi.fn().mockResolvedValue([]),
     getTask: vi.fn().mockResolvedValue({
@@ -73,7 +77,8 @@ function createMockStore() {
       worktreeInitCommand: undefined,
     }),
     updateStep: vi.fn().mockResolvedValue({}),
-  } as any;
+  };
+  return store as any;
 }
 
 describe("TaskExecutor with semaphore", () => {
@@ -906,5 +911,104 @@ describe("summarizeToolArgs", () => {
 
   it("returns undefined when no string args found", () => {
     expect(summarizeToolArgs("unknown", { count: 42, flag: true })).toBeUndefined();
+  });
+});
+
+describe("TaskExecutor pause behavior", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+  });
+
+  it("terminates agent and moves task to todo when paused during execution", async () => {
+    const store = createMockStore();
+    const disposeFn = vi.fn();
+
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      return {
+        session: {
+          prompt: vi.fn().mockImplementation(async () => {
+            // Simulate pause happening during agent execution
+            store._trigger("task:updated", { id: "HAI-001", paused: true, column: "in-progress" });
+            // Simulate the dispose causing an error (session terminated)
+            throw new Error("Session terminated");
+          }),
+          dispose: disposeFn,
+        },
+      } as any;
+    });
+
+    const executor = new TaskExecutor(store, "/tmp/test");
+    await executor.execute({
+      id: "HAI-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Should move to todo, NOT mark as failed
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "todo");
+    expect(store.updateTask).not.toHaveBeenCalledWith("HAI-001", { status: "failed" });
+  });
+
+  it("does not move to in-review when paused during execution (graceful session end)", async () => {
+    const store = createMockStore();
+
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      return {
+        session: {
+          prompt: vi.fn().mockImplementation(async () => {
+            // Simulate pause — session ends gracefully (no throw)
+            store._trigger("task:updated", { id: "HAI-001", paused: true, column: "in-progress" });
+          }),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const executor = new TaskExecutor(store, "/tmp/test");
+    await executor.execute({
+      id: "HAI-001",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Should NOT move to in-review (paused tasks skip that logic)
+    expect(store.moveTask).not.toHaveBeenCalledWith("HAI-001", "in-review");
+  });
+
+  it("skips paused tasks during resumeOrphaned", async () => {
+    const store = createMockStore();
+    store.listTasks.mockResolvedValue([
+      { id: "HAI-001", column: "in-progress", paused: true, title: "Paused task" },
+      { id: "HAI-002", column: "in-progress", paused: false, title: "Active task" },
+    ]);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const executor = new TaskExecutor(store, "/tmp/test");
+    await executor.resumeOrphaned();
+
+    // Only HAI-002 should be resumed (HAI-001 is paused)
+    expect(store.logEntry).toHaveBeenCalledWith("HAI-002", "Resumed after engine restart");
+    expect(store.logEntry).not.toHaveBeenCalledWith("HAI-001", expect.anything());
   });
 });

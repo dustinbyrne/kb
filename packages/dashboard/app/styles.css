@@ -288,6 +288,12 @@ html, body {
   border-left: 3px solid #da3633;
 }
 
+.card.paused {
+  opacity: 0.55;
+  border-left: 3px solid var(--text-secondary, #888);
+  cursor: default;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }

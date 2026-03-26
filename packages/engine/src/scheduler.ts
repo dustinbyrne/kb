@@ -177,8 +177,9 @@ export class Scheduler {
       // Specifying tasks (triage column, status "specifying") run full PI
       // agent sessions that consume the same resources as execution agents,
       // so they must occupy concurrency slots alongside in-progress tasks.
+      // Paused specifying tasks don't count toward slots.
       const specifying = tasks.filter(
-        (t) => t.column === "triage" && t.status === "specifying",
+        (t) => t.column === "triage" && t.status === "specifying" && !t.paused,
       );
       const agentSlots = inProgress.length + specifying.length;
 
@@ -197,7 +198,7 @@ export class Scheduler {
       );
       if (available <= 0) return;
 
-      const todo = tasks.filter((t) => t.column === "todo");
+      const todo = tasks.filter((t) => t.column === "todo" && !t.paused);
       if (todo.length === 0) return;
 
       /**

@@ -96,9 +96,9 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
             console.log(`[auto-merge] Skipping ${taskId} — autoMerge disabled`);
             continue;
           }
-          // Verify the task is still in-review (it may have been manually moved)
+          // Verify the task is still in-review and not paused
           const task = await store.getTask(taskId);
-          if (task.column !== "in-review") {
+          if (task.column !== "in-review" || task.paused) {
             continue;
           }
           console.log(`[auto-merge] Merging ${taskId}...`);
@@ -123,6 +123,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
   // enqueue it for serialized merge processing.
   store.on("task:moved", async ({ task, to }) => {
     if (to !== "in-review") return;
+    if (task.paused) return;
     try {
       const settings = await store.getSettings();
       if (!settings.autoMerge) return;
@@ -177,7 +178,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     // ── Startup sweep: enqueue any tasks already in "in-review" ───────
     if (settings.autoMerge) {
       const existing = await store.listTasks();
-      const inReview = existing.filter((t) => t.column === "in-review");
+      const inReview = existing.filter((t) => t.column === "in-review" && !t.paused);
       if (inReview.length > 0) {
         console.log(
           `[auto-merge] Startup sweep: enqueueing ${inReview.length} in-review task(s)`,
@@ -203,7 +204,7 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
           if (s.autoMerge) {
             const tasks = await store.listTasks();
             for (const t of tasks) {
-              if (t.column === "in-review") {
+              if (t.column === "in-review" && !t.paused) {
                 enqueueMerge(t.id);
               }
             }

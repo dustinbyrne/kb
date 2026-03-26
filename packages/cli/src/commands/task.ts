@@ -250,6 +250,24 @@ export async function runTaskAttach(id: string, filePath: string) {
   console.log();
 }
 
+export async function runTaskPause(id: string) {
+  const store = await getStore();
+  const task = await store.pauseTask(id, true);
+
+  console.log();
+  console.log(`  ✓ Paused ${task.id}`);
+  console.log();
+}
+
+export async function runTaskUnpause(id: string) {
+  const store = await getStore();
+  const task = await store.pauseTask(id, false);
+
+  console.log();
+  console.log(`  ✓ Unpaused ${task.id}`);
+  console.log();
+}
+
 export async function runTaskMove(id: string, column: string) {
   if (!COLUMNS.includes(column as Column)) {
     console.error(`Invalid column: ${column}`);

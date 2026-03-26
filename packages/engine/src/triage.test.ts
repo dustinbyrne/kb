@@ -216,6 +216,74 @@ describe("TriageProcessor dynamic poll interval", () => {
   });
 });
 
+describe("TriageProcessor paused tasks", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("skips paused triage tasks in poll()", async () => {
+    const pausedTask = {
+      id: "HAI-001",
+      title: "Paused",
+      description: "Paused task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      paused: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([pausedTask]);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+    await (triage as any).poll();
+
+    // Agent should never be created for a paused task
+    expect(mockedCreateHaiAgent).not.toHaveBeenCalled();
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("processes non-paused triage tasks normally", async () => {
+    const normalTask = {
+      id: "HAI-002",
+      title: "Normal",
+      description: "Normal task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([normalTask]);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+    await (triage as any).poll();
+
+    // Agent should be created for a non-paused task
+    expect(store.updateTask).toHaveBeenCalledWith("HAI-002", { status: "specifying" });
+  });
+});
+
 describe("buildSpecificationPrompt", () => {
   it("includes project commands when testCommand is set", () => {
     const task = createMockTaskDetail();

@@ -137,6 +137,10 @@ export interface TaskExecutorOptions {
 export class TaskExecutor {
   private activeWorktrees = new Map<string, string>();
   private executing = new Set<string>();
+  /** Active agent sessions per task, used to terminate on pause. */
+  private activeSessions = new Map<string, { dispose: () => void }>();
+  /** Tasks that were paused mid-execution (to avoid marking them as "failed"). */
+  private pausedAborted = new Set<string>();
 
   constructor(
     private store: TaskStore,
@@ -150,6 +154,16 @@ export class TaskExecutor {
         );
       }
     });
+
+    // When a task is paused while executing, terminate the agent session.
+    store.on("task:updated", (task) => {
+      if (task.paused && this.activeSessions.has(task.id)) {
+        console.log(`[executor] Pausing ${task.id} — terminating agent session`);
+        this.pausedAborted.add(task.id);
+        const session = this.activeSessions.get(task.id);
+        session?.dispose();
+      }
+    });
   }
 
   /**
@@ -159,7 +173,7 @@ export class TaskExecutor {
   async resumeOrphaned(): Promise<void> {
     const tasks = await this.store.listTasks();
     const inProgress = tasks.filter(
-      (t) => t.column === "in-progress" && !this.executing.has(t.id),
+      (t) => t.column === "in-progress" && !this.executing.has(t.id) && !t.paused,
     );
 
     if (inProgress.length === 0) return;
@@ -337,9 +351,18 @@ export class TaskExecutor {
           onToolStart: agentLogger.onToolStart,
         });
 
+        // Register session so the pause listener can terminate it
+        this.activeSessions.set(task.id, session);
+
         try {
           const agentPrompt = buildExecutionPrompt(detail, this.rootDir, settings);
           await session.prompt(agentPrompt);
+
+          // If paused during execution, don't move to in-review
+          if (this.pausedAborted.has(task.id)) {
+            this.pausedAborted.delete(task.id);
+            return;
+          }
 
           if (taskDone) {
             await this.store.moveTask(task.id, "in-review");
@@ -352,6 +375,7 @@ export class TaskExecutor {
             this.options.onComplete?.(task);
           }
         } finally {
+          this.activeSessions.delete(task.id);
           await agentLogger.flush();
           session.dispose();
         }
@@ -363,10 +387,18 @@ export class TaskExecutor {
         await agentWork();
       }
     } catch (err: any) {
-      console.error(`[executor] ✗ ${task.id} execution failed:`, err.message);
-      await this.store.logEntry(task.id, `Execution failed: ${err.message}`);
-      await this.store.updateTask(task.id, { status: "failed" });
-      this.options.onError?.(task, err);
+      if (this.pausedAborted.has(task.id)) {
+        // Task was paused mid-execution — move to todo, don't mark as failed
+        console.log(`[executor] ${task.id} paused — moving to todo`);
+        this.pausedAborted.delete(task.id);
+        await this.store.logEntry(task.id, "Execution paused — agent terminated, moved to todo");
+        await this.store.moveTask(task.id, "todo");
+      } else {
+        console.error(`[executor] ✗ ${task.id} execution failed:`, err.message);
+        await this.store.logEntry(task.id, `Execution failed: ${err.message}`);
+        await this.store.updateTask(task.id, { status: "failed" });
+        this.options.onError?.(task, err);
+      }
     } finally {
       this.executing.delete(task.id);
     }

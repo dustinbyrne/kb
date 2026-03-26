@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Task, TaskDetail, TaskAttachment, Column, MergeResult } from "@hai/core";
 import { COLUMN_LABELS, VALID_TRANSITIONS } from "@hai/core";
-import { uploadAttachment, deleteAttachment, updateTask } from "../api";
+import { uploadAttachment, deleteAttachment, updateTask, pauseTask, unpauseTask } from "../api";
 import type { ToastType } from "../hooks/useToast";
 import { useAgentLogs } from "../hooks/useAgentLogs";
 import { AgentLogViewer } from "./AgentLogViewer";
@@ -129,6 +129,21 @@ export function TaskDetailModal({
       addToast(err.message, "error");
     }
   }, [task.id, onRetryTask, onClose, addToast]);
+
+  const handleTogglePause = useCallback(async () => {
+    try {
+      if (task.paused) {
+        await unpauseTask(task.id);
+        addToast(`Unpaused ${task.id}`, "success");
+      } else {
+        await pauseTask(task.id);
+        addToast(`Paused ${task.id}`, "success");
+      }
+      onClose();
+    } catch (err: any) {
+      addToast(err.message, "error");
+    }
+  }, [task.id, task.paused, onClose, addToast]);
 
   const uploadFile = useCallback(async (file: File) => {
     setUploading(true);
@@ -457,6 +472,11 @@ export function TaskDetailModal({
           {task.status === "failed" && onRetryTask && (
             <button className="btn btn-warning btn-sm" onClick={handleRetry}>
               Retry
+            </button>
+          )}
+          {task.column !== "done" && (
+            <button className="btn btn-sm" onClick={handleTogglePause}>
+              {task.paused ? "Unpause" : "Pause"}
             </button>
           )}
           <div style={{ flex: 1 }} />

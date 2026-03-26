@@ -109,6 +109,28 @@ describe("groupByWorktree", () => {
     expect(groups[0].activeTasks).toEqual([unassigned]);
   });
 
+  it("excludes paused todo tasks from Up Next", () => {
+    const active = makeTask({ id: "HAI-001", worktree: ".worktrees/swift-falcon" });
+    const paused = makeTask({
+      id: "HAI-002",
+      column: "todo",
+      dependencies: [],
+      paused: true,
+    });
+    const normal = makeTask({
+      id: "HAI-003",
+      column: "todo",
+      dependencies: [],
+    });
+
+    const groups = groupByWorktree([active], [active, paused, normal], 2);
+
+    const upNext = groups.find((g) => g.label === "Up Next");
+    expect(upNext).toBeDefined();
+    expect(upNext!.queuedTasks.map((t) => t.id)).toEqual(["HAI-003"]);
+    expect(upNext!.queuedTasks.map((t) => t.id)).not.toContain("HAI-002");
+  });
+
   it("queued tasks with satisfied deps appear in Up Next", () => {
     const done = makeTask({ id: "HAI-001", column: "done" });
     const queued = makeTask({

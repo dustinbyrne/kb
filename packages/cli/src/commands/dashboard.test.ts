@@ -140,3 +140,80 @@ describe("runDashboard — WorktreePool wiring", () => {
     expect(executorPool).toBe(mergerPool);
   });
 });
+
+describe("runDashboard — auto-merge pause exclusion", () => {
+  let mockStore: ReturnType<typeof makeMockStore>;
+
+  beforeEach(async () => {
+    capturedExecutorOpts = undefined;
+    vi.clearAllMocks();
+    mockStore = makeMockStore();
+    const { TaskStore } = await import("@hai/core");
+    (TaskStore as ReturnType<typeof vi.fn>).mockImplementation(() => mockStore);
+    const engine = await import("@hai/engine");
+    (engine.aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve({ merged: true }),
+    );
+    (engine.TaskExecutor as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_store: unknown, _cwd: unknown, opts: unknown) => {
+        capturedExecutorOpts = opts as Record<string, unknown>;
+        return { resumeOrphaned: vi.fn().mockResolvedValue(undefined) };
+      },
+    );
+  });
+
+  it("does not enqueue paused in-review tasks for auto-merge on task:moved", async () => {
+    mockStore.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 2,
+      autoMerge: true,
+      pollIntervalMs: 60_000,
+    });
+
+    await runDashboard(0, { engine: true, open: false });
+
+    const { aiMergeTask } = await import("@hai/engine");
+
+    // Emit task:moved with a paused task
+    mockStore.emit("task:moved", {
+      task: { id: "HAI-PAUSED", column: "in-review", paused: true },
+      from: "in-progress",
+      to: "in-review",
+    });
+
+    // Give async handlers time to process
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(aiMergeTask).not.toHaveBeenCalled();
+  });
+
+  it("does not enqueue paused in-review tasks during startup sweep", async () => {
+    mockStore.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 2,
+      autoMerge: true,
+      pollIntervalMs: 60_000,
+    });
+    mockStore.listTasks.mockResolvedValue([
+      { id: "HAI-PAUSED", column: "in-review", paused: true },
+      { id: "HAI-ACTIVE", column: "in-review", paused: false },
+    ]);
+
+    const { aiMergeTask } = await import("@hai/engine");
+    // Reset after import
+    (aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve({ merged: true }),
+    );
+
+    await runDashboard(0, { engine: true, open: false });
+
+    // Give async handlers time to process
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Only the non-paused task should be enqueued
+    const mergedIds = (aiMergeTask as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: any[]) => call[2],
+    );
+    expect(mergedIds).not.toContain("HAI-PAUSED");
+  });
+});

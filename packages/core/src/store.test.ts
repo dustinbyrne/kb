@@ -437,6 +437,96 @@ describe("TaskStore", () => {
     });
   });
 
+  describe("pauseTask", () => {
+    it("sets paused flag to true and adds log entry", async () => {
+      const task = await createTestTask();
+      const paused = await store.pauseTask(task.id, true);
+
+      expect(paused.paused).toBe(true);
+      expect(paused.log.some((l) => l.action === "Task paused")).toBe(true);
+
+      // Verify persistence
+      const fetched = await store.getTask(task.id);
+      expect(fetched.paused).toBe(true);
+    });
+
+    it("unpauses a paused task and clears paused flag", async () => {
+      const task = await createTestTask();
+      await store.pauseTask(task.id, true);
+      const unpaused = await store.pauseTask(task.id, false);
+
+      expect(unpaused.paused).toBeUndefined();
+      expect(unpaused.log.some((l) => l.action === "Task unpaused")).toBe(true);
+
+      const fetched = await store.getTask(task.id);
+      expect(fetched.paused).toBeUndefined();
+    });
+
+    it("emits task:updated event", async () => {
+      const task = await createTestTask();
+      const events: any[] = [];
+      store.on("task:updated", (t) => events.push(t));
+
+      await store.pauseTask(task.id, true);
+
+      expect(events).toHaveLength(1);
+      expect(events[0].paused).toBe(true);
+    });
+
+    it("sets status to 'paused' when pausing an in-progress task", async () => {
+      const task = await createTestTask();
+      // Move to in-progress: triage → todo → in-progress
+      await store.moveTask(task.id, "todo");
+      await store.moveTask(task.id, "in-progress");
+
+      const paused = await store.pauseTask(task.id, true);
+      expect(paused.paused).toBe(true);
+      expect(paused.status).toBe("paused");
+    });
+
+    it("clears status when unpausing an in-progress task", async () => {
+      const task = await createTestTask();
+      await store.moveTask(task.id, "todo");
+      await store.moveTask(task.id, "in-progress");
+
+      await store.pauseTask(task.id, true);
+      const unpaused = await store.pauseTask(task.id, false);
+      expect(unpaused.paused).toBeUndefined();
+      expect(unpaused.status).toBeUndefined();
+    });
+
+    it("round-trips pause/unpause correctly", async () => {
+      const task = await createTestTask();
+
+      await store.pauseTask(task.id, true);
+      let fetched = await store.getTask(task.id);
+      expect(fetched.paused).toBe(true);
+
+      await store.pauseTask(task.id, false);
+      fetched = await store.getTask(task.id);
+      expect(fetched.paused).toBeUndefined();
+
+      await store.pauseTask(task.id, true);
+      fetched = await store.getTask(task.id);
+      expect(fetched.paused).toBe(true);
+    });
+  });
+
+  describe("updateTask — paused", () => {
+    it("sets paused via updateTask", async () => {
+      const task = await createTestTask();
+      const updated = await store.updateTask(task.id, { paused: true });
+      expect(updated.paused).toBe(true);
+    });
+
+    it("clears paused via updateTask", async () => {
+      const task = await createTestTask();
+      await store.updateTask(task.id, { paused: true });
+      const updated = await store.updateTask(task.id, { paused: false });
+      expect(updated.paused).toBeUndefined();
+    });
+  });
+
   describe("agent log persistence", () => {
     it("appendAgentLog creates agent.log and getAgentLogs reads it back", async () => {
       const task = await createTestTask();

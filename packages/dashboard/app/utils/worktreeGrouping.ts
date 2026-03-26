@@ -77,6 +77,7 @@ export function groupByWorktree(
   const taskById = new Map(allTasks.map((t) => [t.id, t]));
   const todoTasks = allTasks.filter((t) => t.column === "todo");
   const eligible = todoTasks.filter((t) =>
+    !t.paused &&
     (t.dependencies || []).every((depId) => {
       const dep = taskById.get(depId);
       return dep && (dep.column === "done" || dep.column === "in-review");

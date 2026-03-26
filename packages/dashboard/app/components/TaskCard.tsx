@@ -89,16 +89,18 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
   }, [task.id, onOpenDetail, addToast]);
 
   const isFailed = task.status === "failed";
-  const isAgentActive = !queued && !isFailed && (task.column === "in-progress" || ACTIVE_STATUSES.has(task.status as string));
-  const cardClass = `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}${isFailed ? " failed" : ""}${fileDragOver ? " file-drop-target" : ""}`;
+  const isPaused = task.paused === true;
+  const isAgentActive = !queued && !isFailed && !isPaused && (task.column === "in-progress" || ACTIVE_STATUSES.has(task.status as string));
+  const isDraggable = !queued && !isPaused;
+  const cardClass = `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}${isFailed ? " failed" : ""}${isPaused ? " paused" : ""}${fileDragOver ? " file-drop-target" : ""}`;
 
   return (
     <div
       className={cardClass}
       data-id={task.id}
-      draggable={!queued}
-      onDragStart={queued ? undefined : handleDragStart}
-      onDragEnd={queued ? undefined : handleDragEnd}
+      draggable={isDraggable}
+      onDragStart={isDraggable ? handleDragStart : undefined}
+      onDragEnd={isDraggable ? handleDragEnd : undefined}
       onDragOver={handleFileDragOver}
       onDragLeave={handleFileDragLeave}
       onDrop={handleFileDrop}
@@ -106,7 +108,15 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
     >
       <div className="card-header">
         <span className="card-id">{task.id}</span>
-        {task.status && task.status !== "queued" && (
+        {isPaused && (
+          <span
+            className="card-status-badge"
+            style={{ background: "rgba(139,148,158,0.2)", color: "var(--text-secondary, #888)" }}
+          >
+            paused
+          </span>
+        )}
+        {!isPaused && task.status && task.status !== "queued" && (
           <span
             className={`card-status-badge${ACTIVE_STATUSES.has(task.status) ? " pulsing" : ""}${isFailed ? " failed" : ""}`}
             style={isFailed

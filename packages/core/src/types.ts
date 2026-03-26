@@ -51,6 +51,8 @@ export interface Task {
    *  the task due to file-scope overlap; cleared (set to `undefined`)
    *  when the task is eventually started or moved to done. */
   blockedBy?: string;
+  /** When true, all automated agent and scheduler interaction is suspended. */
+  paused?: boolean;
   attachments?: TaskAttachment[];
   log: TaskLogEntry[];
   size?: "S" | "M" | "L";
