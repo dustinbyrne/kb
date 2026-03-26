@@ -114,8 +114,7 @@ model, read-only access) to independently assess your work.
 ## Completion
 After all steps are done, tests pass, and docs are updated:
 \`\`\`bash
-echo "done" > .DONE
-\`\`\``;
+Call \`task_done()\` to signal completion.`;
 
 export interface TaskExecutorOptions {
   semaphore?: AgentSemaphore;
@@ -210,10 +209,12 @@ export class TaskExecutor {
       }
 
       // Build custom tools for the worker
+      let taskDone = false;
       const customTools = [
         this.createTaskUpdateTool(task.id),
         this.createTaskLogTool(task.id),
         this.createTaskCreateTool(),
+        this.createTaskDoneTool(task.id, () => { taskDone = true; }),
         this.createReviewStepTool(task.id, worktreePath, detail.prompt),
       ];
 
@@ -231,16 +232,14 @@ export class TaskExecutor {
           const agentPrompt = buildExecutionPrompt(detail);
           await session.prompt(agentPrompt);
 
-          const doneCwd = join(worktreePath, ".DONE");
-          if (existsSync(doneCwd)) {
-            await this.store.logEntry(task.id, "Execution complete — .DONE created");
+          if (taskDone) {
             await this.store.moveTask(task.id, "in-review");
             console.log(`[executor] ✓ ${task.id} completed → in-review`);
             this.options.onComplete?.(task);
           } else {
-            await this.store.logEntry(task.id, "Agent finished without .DONE — moved to in-review for inspection");
+            await this.store.logEntry(task.id, "Agent finished without calling task_done — moved to in-review for inspection");
             await this.store.moveTask(task.id, "in-review");
-            console.log(`[executor] ⚠ ${task.id} agent finished without .DONE → in-review`);
+            console.log(`[executor] ⚠ ${task.id} finished without task_done → in-review`);
             this.options.onComplete?.(task);
           }
         } finally {
@@ -331,6 +330,34 @@ export class TaskExecutor {
             type: "text" as const,
             text: `Created ${task.id}: ${params.description}${deps}`,
           }],
+          details: {},
+        };
+      },
+    };
+  }
+
+  private createTaskDoneTool(taskId: string, onDone: () => void): ToolDefinition {
+    const store = this.store;
+    return {
+      name: "task_done",
+      label: "Mark Task Done",
+      description:
+        "Signal that all steps are complete, tests pass, and documentation is updated. " +
+        "Call this as the final action after finishing all work. " +
+        "Automatically marks all remaining steps as done.",
+      parameters: Type.Object({}),
+      execute: async () => {
+        onDone();
+        // Mark all pending/in-progress steps as done
+        const task = await store.getTask(taskId);
+        for (let i = 0; i < task.steps.length; i++) {
+          if (task.steps[i].status !== "done" && task.steps[i].status !== "skipped") {
+            await store.updateStep(taskId, i, "done");
+          }
+        }
+        await store.logEntry(taskId, "Task marked done by agent");
+        return {
+          content: [{ type: "text" as const, text: "Task marked complete. All steps done. Moving to in-review." }],
           details: {},
         };
       },
@@ -491,5 +518,5 @@ Use \`task_update\` to report progress on every step transition.
 Use \`task_log\` for important actions and decisions.
 Use \`task_create\` if you find out-of-scope work that needs doing.
 Commit at step boundaries: \`git commit -m "feat(${task.id}): complete Step N — description"\`
-When done: \`echo "done" > .DONE\``;
+When all steps are complete: call \`task_done()\``;
 }
