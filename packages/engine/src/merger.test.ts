@@ -16,7 +16,7 @@ vi.mock("node:fs", () => ({
 import { aiMergeTask, findWorktreeUser } from "./merger.js";
 import { createHaiAgent } from "./pi.js";
 import { execSync } from "node:child_process";
-import type { TaskStore, Task, MergeResult } from "@hai/core";
+import { type TaskStore, type Task, type MergeResult, DEFAULT_SETTINGS } from "@hai/core";
 
 const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
 const mockedExecSync = vi.mocked(execSync);
@@ -45,6 +45,7 @@ function createMockStore(taskOverrides: Partial<Task> = {}, allTasks: Task[] = [
     updateTask: vi.fn().mockResolvedValue(baseTask),
     moveTask: vi.fn().mockResolvedValue(baseTask),
     logEntry: vi.fn().mockResolvedValue(undefined),
+    getSettings: vi.fn().mockResolvedValue({ ...DEFAULT_SETTINGS }),
     emit: vi.fn(),
     on: vi.fn(),
   } as unknown as TaskStore;
