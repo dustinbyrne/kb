@@ -432,9 +432,6 @@ html, body {
 }
 
 .detail-prompt {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 14px;
   font-size: 13px;
   line-height: 1.6;
@@ -442,17 +439,16 @@ html, body {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-muted);
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-.detail-prompt.markdown-body {
-  font-family: inherit;
-  white-space: normal;
-  color: var(--text);
 }
 
 /* === Markdown Prose === */
+.markdown-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+
 .markdown-body h1,
 .markdown-body h2,
 .markdown-body h3,

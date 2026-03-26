@@ -147,14 +147,17 @@ export class TaskExecutor {
         return;
       }
 
-      // Create worktree
+      // Create or reuse worktree
       const branchName = `hai/${task.id.toLowerCase()}`;
-      const worktreePath = join(this.rootDir, ".worktrees", task.id);
+      const worktreePath = task.worktree || join(this.rootDir, ".worktrees", task.id);
+      const isResume = existsSync(worktreePath);
       this.createWorktree(branchName, worktreePath);
       this.activeWorktrees.set(task.id, worktreePath);
 
-      await this.store.updateTask(task.id, { worktree: worktreePath });
-      await this.store.logEntry(task.id, `Worktree created at ${worktreePath}`);
+      if (!isResume) {
+        await this.store.updateTask(task.id, { worktree: worktreePath });
+        await this.store.logEntry(task.id, `Worktree created at ${worktreePath}`);
+      }
 
       this.options.onStart?.(task, worktreePath);
 
@@ -422,6 +425,34 @@ function buildExecutionPrompt(task: TaskDetail): string {
   const reviewMatch = task.prompt.match(/##\s*Review Level[:\s]*(\d)/);
   const reviewLevel = reviewMatch ? parseInt(reviewMatch[1], 10) : 0;
 
+  // Build step progress for resume
+  const hasProgress = task.steps.length > 0 && task.steps.some((s) => s.status !== "pending");
+  let progressSection = "";
+  if (hasProgress) {
+    const doneSteps = task.steps
+      .map((s, i) => ({ ...s, index: i }))
+      .filter((s) => s.status === "done");
+    const currentStep = task.currentStep;
+    const currentStepInfo = task.steps[currentStep];
+
+    progressSection = `
+## ⚠️ RESUMING — Previous progress exists
+
+This task was already partially executed. DO NOT redo completed steps.
+
+### Step status:
+${task.steps.map((s, i) => `- Step ${i} (${s.name}): **${s.status}**`).join("\n")}
+
+### Resume from: Step ${currentStep}${currentStepInfo ? ` (${currentStepInfo.name})` : ""}
+
+${doneSteps.length > 0 ? `Steps ${doneSteps.map((s) => s.index).join(", ")} are already complete — skip them entirely.` : ""}
+Check the git log to understand what was already implemented:
+\`\`\`bash
+git log --oneline
+\`\`\`
+`;
+  }
+
   return `Execute this task.
 
 ## Task: ${task.id}
@@ -431,7 +462,7 @@ ${task.dependencies.length > 0 ? `Dependencies: ${task.dependencies.join(", ")}`
 ## PROMPT.md
 
 ${task.prompt}
-
+${progressSection}
 ## Review level: ${reviewLevel}
 
 ${reviewLevel === 0 ? "No reviews required. Implement directly." : ""}
@@ -443,7 +474,9 @@ ${reviewLevel >= 3 ? `After tests, also call review_step with type="code" for te
 
 ## Begin
 
-Start with Step 0 (Preflight). Work through each step in order.
+${hasProgress
+    ? `Resume from Step ${task.currentStep}. Do NOT redo completed steps.`
+    : "Start with Step 0 (Preflight). Work through each step in order."}
 Use \`task_update\` to report progress on every step transition.
 Use \`task_log\` for important actions and decisions.
 Use \`task_create\` if you find out-of-scope work that needs doing.

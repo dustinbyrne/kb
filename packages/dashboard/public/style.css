@@ -340,9 +340,6 @@ html, body {
 }
 
 .detail-prompt {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 14px;
   font-size: 13px;
   line-height: 1.6;
@@ -350,8 +347,6 @@ html, body {
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--text-muted);
-  max-height: 320px;
-  overflow-y: auto;
 }
 
 .detail-deps { margin-top: 16px; }
