@@ -101,17 +101,6 @@ export async function runTaskLog(id: string, message: string, outcome?: string) 
   console.log();
 }
 
-export async function runTaskDiscover(id: string, discovery: string, disposition: string, location?: string) {
-  const store = await getStore();
-  await store.addDiscovery(id, discovery, disposition, location);
-
-  console.log();
-  console.log(`  ✓ ${id}: discovery recorded`);
-  console.log(`    ${discovery}`);
-  console.log(`    → ${disposition}`);
-  console.log();
-}
-
 export async function runTaskShow(id: string) {
   const store = await getStore();
   const task = await store.getTask(id);
@@ -135,15 +124,6 @@ export async function runTaskShow(id: string) {
         : " ";
       const marker = i === task.currentStep && s.status !== "done" ? " ◀" : "";
       console.log(`    [${icon}] ${i}: ${s.name}${marker}`);
-    }
-    console.log();
-  }
-
-  // Discoveries
-  if (task.discoveries.length > 0) {
-    console.log(`  Discoveries:`);
-    for (const d of task.discoveries) {
-      console.log(`    • ${d.discovery} → ${d.disposition}${d.location ? ` (${d.location})` : ""}`);
     }
     console.log();
   }

@@ -41,10 +41,10 @@ Log important actions, decisions, or issues:
 hai task log {TASK_ID} "description of what happened"
 \`\`\`
 
-### Discoveries
-When you find something unexpected that may affect future tasks:
+### Out-of-scope work
+If you find something that needs doing but is outside this task's scope, create a new task:
 \`\`\`bash
-hai task discover {TASK_ID} "what you found" "what to do about it" "optional/file/location"
+hai task create "description of the new work needed"
 \`\`\`
 
 ## Git discipline
@@ -65,7 +65,7 @@ hai task discover {TASK_ID} "what you found" "what to do about it" "optional/fil
 - Stay within the file scope defined in PROMPT.md
 - Read "Context to Read First" files before starting
 - Follow the "Do NOT" section strictly
-- If you discover work outside the task's scope, log it with \`hai task discover\` but don't do it
+- If you find work outside the task's scope, create a new task with \`hai task create "description"\`
 - Update documentation listed in "Must Update" and check "Check If Affected"
 
 ## Documentation
@@ -243,7 +243,7 @@ ${task.prompt}
    - \`hai task update ${task.id} 0 in-progress\` — when starting Step 0
    - \`hai task update ${task.id} 0 done\` — when Step 0 is complete
    - \`hai task log ${task.id} "what you did"\` — for important actions
-   - \`hai task discover ${task.id} "finding" "disposition"\` — for discoveries
+   - \`hai task create "description"\` — for out-of-scope work found during execution
 3. Implement each step in order, committing at step boundaries:
    \`git commit -m "feat(${task.id}): complete Step N — description"\`
 4. Follow the review level guidance in the spec

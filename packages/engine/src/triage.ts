@@ -75,7 +75,7 @@ Follow this structure exactly:
 ### Step {N}: Documentation & Delivery
 
 - [ ] Update relevant documentation
-- [ ] Discoveries logged via \`hai task discover\`
+- [ ] Out-of-scope findings created as new tasks via \`hai task create\`
 
 ## Documentation Requirements
 

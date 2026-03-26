@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { runDashboard } from "./commands/dashboard.js";
-import { runTaskCreate, runTaskList, runTaskMove, runTaskMerge, runTaskUpdate, runTaskLog, runTaskDiscover, runTaskShow } from "./commands/task.js";
+import { runTaskCreate, runTaskList, runTaskMove, runTaskMerge, runTaskUpdate, runTaskLog, runTaskShow } from "./commands/task.js";
 
 const HELP = `
 hai — AI-orchestrated task board
@@ -14,7 +14,6 @@ Usage:
   hai task move <id> <col>             Move a task to a column
   hai task update <id> <step> <status> Update step status (pending|in-progress|done|skipped)
   hai task log <id> <message>          Add a log entry
-  hai task discover <id> <what> <disp> Record a discovery
   hai task merge <id>                  Merge an in-review task and close it
 
 Options:
@@ -93,15 +92,6 @@ async function main() {
             const id = args[2], message = args.slice(3).join(" ");
             if (!id || !message) { console.error("Usage: hai task log <id> <message>"); process.exit(1); }
             await runTaskLog(id, message);
-            break;
-          }
-          case "discover": {
-            const id = args[2], what = args[3], disp = args[4], loc = args[5];
-            if (!id || !what || !disp) {
-              console.error("Usage: hai task discover <id> <discovery> <disposition> [location]");
-              process.exit(1);
-            }
-            await runTaskDiscover(id, what, disp, loc);
             break;
           }
           case "merge": {

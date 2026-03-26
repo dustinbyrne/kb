@@ -14,20 +14,6 @@ export interface TaskLogEntry {
   outcome?: string;
 }
 
-export interface TaskDiscovery {
-  discovery: string;
-  disposition: string;
-  location?: string;
-}
-
-export interface TaskReview {
-  id: number;
-  type: string;
-  step: number;
-  verdict: string;
-  notes?: string;
-}
-
 export interface Task {
   id: string;
   title?: string;
@@ -37,8 +23,6 @@ export interface Task {
   worktree?: string;
   steps: TaskStep[];
   currentStep: number;
-  reviews: TaskReview[];
-  discoveries: TaskDiscovery[];
   log: TaskLogEntry[];
   size?: "S" | "M" | "L";
   reviewLevel?: number;

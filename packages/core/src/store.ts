@@ -94,8 +94,6 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       dependencies: input.dependencies || [],
       steps: [],
       currentStep: 0,
-      reviews: [],
-      discoveries: [],
       log: [{ timestamp: now, action: "Task created" }],
       createdAt: now,
       updatedAt: now,
@@ -291,37 +289,6 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       outcome,
     });
     task.updatedAt = new Date().toISOString();
-
-    const taskJsonPath = join(dir, "task.json");
-    this.suppressWatcher(taskJsonPath);
-    await writeFile(taskJsonPath, JSON.stringify(task, null, 2));
-    if (this.watcher) this.taskCache.set(id, { ...task });
-
-    this.emit("task:updated", task);
-    return task;
-  }
-
-  /**
-   * Record a discovery (things found during execution that may affect future tasks).
-   */
-  async addDiscovery(
-    id: string,
-    discovery: string,
-    disposition: string,
-    location?: string,
-  ): Promise<Task> {
-    const dir = this.taskDir(id);
-    const data = await readFile(join(dir, "task.json"), "utf-8");
-    const task = JSON.parse(data) as Task;
-
-    task.discoveries.push({ discovery, disposition, location });
-    task.updatedAt = new Date().toISOString();
-
-    task.log.push({
-      timestamp: task.updatedAt,
-      action: `Discovery: ${discovery}`,
-      outcome: disposition,
-    });
 
     const taskJsonPath = join(dir, "task.json");
     this.suppressWatcher(taskJsonPath);
