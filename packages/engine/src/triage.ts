@@ -155,9 +155,21 @@ export interface TriageProcessorOptions {
   onAgentText?: (taskId: string, delta: string) => void;
 }
 
+/**
+ * Processes tasks in the triage column by running an AI agent to generate
+ * a full PROMPT.md specification.
+ *
+ * **Dynamic poll interval:** On every `poll()` call the processor reads
+ * `pollIntervalMs` from the persisted store settings (`store.getSettings()`).
+ * If the value has changed since the last cycle the `setInterval` timer is
+ * transparently restarted, so dashboard setting changes take effect without
+ * an engine restart.
+ */
 export class TriageProcessor {
   private running = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  /** The interval (ms) of the currently active `setInterval` timer. */
+  private activePollMs: number | null = null;
   private processing = new Set<string>();
 
   constructor(
@@ -171,6 +183,7 @@ export class TriageProcessor {
     this.running = true;
 
     const interval = this.options.pollIntervalMs ?? 10_000;
+    this.activePollMs = interval;
     this.pollInterval = setInterval(() => this.poll(), interval);
     this.poll();
     console.log("[triage] Processor started");
@@ -181,14 +194,34 @@ export class TriageProcessor {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+      this.activePollMs = null;
     }
     console.log("[triage] Processor stopped");
+  }
+
+  /**
+   * If `newIntervalMs` differs from the currently active timer, restart
+   * the `setInterval` so the new cadence takes effect immediately.
+   */
+  private refreshPollInterval(newIntervalMs?: number): void {
+    if (!this.running || !newIntervalMs) return;
+    if (newIntervalMs === this.activePollMs) return;
+
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
+    this.activePollMs = newIntervalMs;
+    this.pollInterval = setInterval(() => this.poll(), newIntervalMs);
+    console.log(`[triage] Poll interval updated to ${newIntervalMs}ms`);
   }
 
   private async poll(): Promise<void> {
     if (!this.running) return;
 
     try {
+      const settings = await this.store.getSettings();
+      this.refreshPollInterval(settings.pollIntervalMs);
+
       const tasks = await this.store.listTasks();
       const triageTasks = tasks.filter(
         (t) => t.column === "triage" && !this.processing.has(t.id),

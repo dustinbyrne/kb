@@ -162,8 +162,6 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
 
     const scheduler = new Scheduler(store, {
       semaphore,
-      maxConcurrent: settings.maxConcurrent,
-      maxWorktrees: settings.maxWorktrees,
       onSchedule: (t) => console.log(`[engine] Scheduled ${t.id}`),
       onBlocked: (t, deps) => console.log(`[engine] ${t.id} blocked by ${deps.join(", ")}`),
     });
@@ -191,27 +189,36 @@ export async function runDashboard(port: number, opts: { engine?: boolean; open?
     }
 
     // ── Periodic retry: catch failed merges on each poll cycle ────────
-    // Uses the same interval as the scheduler so failed merges are
-    // retried at a predictable cadence without adding extra timers.
-    const mergeRetryInterval = setInterval(async () => {
-      try {
-        const currentSettings = await store.getSettings();
-        // Refresh the cached limit so the semaphore picks up live changes
-        cachedMaxConcurrent = currentSettings.maxConcurrent;
-        if (!currentSettings.autoMerge) return;
-        const tasks = await store.listTasks();
-        for (const t of tasks) {
-          if (t.column === "in-review") {
-            enqueueMerge(t.id);
+    // Uses a setTimeout chain so the interval dynamically follows
+    // settings.pollIntervalMs without requiring an engine restart.
+    let mergeRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    async function scheduleMergeRetry(): Promise<void> {
+      const currentSettings = await store.getSettings().catch(() => settings);
+      const interval = currentSettings.pollIntervalMs ?? 15_000;
+      mergeRetryTimer = setTimeout(async () => {
+        try {
+          const s = await store.getSettings();
+          // Refresh the cached limit so the semaphore picks up live changes
+          cachedMaxConcurrent = s.maxConcurrent;
+          if (s.autoMerge) {
+            const tasks = await store.listTasks();
+            for (const t of tasks) {
+              if (t.column === "in-review") {
+                enqueueMerge(t.id);
+              }
+            }
           }
-        }
-      } catch { /* ignore errors in periodic sweep */ }
-    }, settings.pollIntervalMs ?? 15_000);
+        } catch { /* ignore errors in periodic sweep */ }
+        scheduleMergeRetry();
+      }, interval);
+    }
+    // Kick off the first retry after the current poll interval
+    scheduleMergeRetry();
 
     process.on("SIGINT", () => {
       triage.stop();
       scheduler.stop();
-      clearInterval(mergeRetryInterval);
+      if (mergeRetryTimer) clearTimeout(mergeRetryTimer);
       store.stopWatching();
       process.exit(0);
     });

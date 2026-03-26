@@ -99,6 +99,13 @@ describe("Scheduler concurrency", () => {
       makeTask({ id: "HAI-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 3,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
     const scheduler = new Scheduler(store, { maxConcurrent: 3 });
 
     await runSchedule(scheduler);
@@ -120,6 +127,118 @@ describe("Scheduler concurrency", () => {
 
     // Only 1 in-progress, triage task without "specifying" doesn't count
     expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
+  });
+});
+
+describe("Scheduler dynamic settings reload", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("reads maxConcurrent from store settings on each schedule() call", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "in-progress" }),
+      makeTask({ id: "HAI-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    // Start with maxConcurrent: 1 — no room
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store);
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).not.toHaveBeenCalled();
+
+    // Now bump maxConcurrent to 2 — room for HAI-002
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+  });
+
+  it("reads maxWorktrees from store settings on each schedule() call", async () => {
+    const tasks = [
+      makeTask({ id: "HAI-001", column: "in-progress" }),
+      makeTask({ id: "HAI-002", column: "in-review", worktree: "/tmp/wt" }),
+      makeTask({ id: "HAI-003", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    // Start with maxWorktrees: 2 — no room (2 active worktrees)
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 4,
+      maxWorktrees: 2,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store);
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).not.toHaveBeenCalled();
+
+    // Bump maxWorktrees to 3 — room for HAI-003
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 4,
+      maxWorktrees: 3,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
+  });
+
+  it("refreshes poll interval when settings.pollIntervalMs changes", async () => {
+    const store = createMockStore([]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+    const scheduler = new Scheduler(store);
+
+    // Manually set running and activePollMs to simulate start()
+    (scheduler as any).running = true;
+    (scheduler as any).activePollMs = 15000;
+    (scheduler as any).pollInterval = setInterval(() => {}, 15000);
+
+    // First schedule — same interval, no change
+    await scheduler.schedule();
+    expect((scheduler as any).activePollMs).toBe(15000);
+
+    // Change pollIntervalMs
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 5000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    await scheduler.schedule();
+    expect((scheduler as any).activePollMs).toBe(5000);
+
+    // Clean up
+    scheduler.stop();
   });
 });
 
@@ -206,6 +325,13 @@ describe("Scheduler worktree limit logging", () => {
       makeTask({ id: "HAI-002", column: "in-progress" }),
     ];
     const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 2,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
     const scheduler = new Scheduler(store, { maxWorktrees: 2 });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -223,6 +349,13 @@ describe("Scheduler worktree limit logging", () => {
       makeTask({ id: "HAI-002", column: "in-progress" }),
     ];
     const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 2,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
     const scheduler = new Scheduler(store, { maxWorktrees: 2 });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -250,6 +383,13 @@ describe("Scheduler worktree limit logging", () => {
     ];
 
     const store = createMockStore(maxedTasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 2,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
     const scheduler = new Scheduler(store, { maxWorktrees: 2, maxConcurrent: 2 });
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});

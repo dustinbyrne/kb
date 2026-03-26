@@ -172,6 +172,49 @@ describe("TriageProcessor with semaphore", () => {
   });
 });
 
+describe("TriageProcessor dynamic poll interval", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("refreshes poll interval when settings.pollIntervalMs changes", async () => {
+    const store = createMockStore();
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 10000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+
+    // Simulate start state
+    (triage as any).running = true;
+    (triage as any).activePollMs = 10000;
+    (triage as any).pollInterval = setInterval(() => {}, 10000);
+
+    // First poll — same interval, no change
+    await (triage as any).poll();
+    expect((triage as any).activePollMs).toBe(10000);
+
+    // Change pollIntervalMs in settings
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 3000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+    });
+
+    await (triage as any).poll();
+    expect((triage as any).activePollMs).toBe(3000);
+
+    // Clean up
+    triage.stop();
+  });
+});
+
 describe("buildSpecificationPrompt", () => {
   it("includes project commands when testCommand is set", () => {
     const task = createMockTaskDetail();

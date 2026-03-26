@@ -61,12 +61,22 @@ export interface SchedulerOptions {
  * It respects:
  * - Dependency ordering (tasks depending on others wait)
  * - Concurrency limits (max N tasks in-progress at once)
+ *
+ * **Dynamic settings reload:** On every `schedule()` call the scheduler
+ * reads `maxConcurrent`, `maxWorktrees`, and `pollIntervalMs` from the
+ * persisted store settings (`store.getSettings()`).  This means changes
+ * made via the dashboard Settings modal (`PUT /settings`) take effect on
+ * the very next poll cycle without an engine restart.  The poll interval
+ * itself is also refreshed: if `pollIntervalMs` differs from the active
+ * timer, the `setInterval` is transparently restarted.
  */
 export class Scheduler {
   private running = false;
   private scheduling = false;
   private wasWorktreeLimited = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  /** The interval (ms) of the currently active `setInterval` timer. */
+  private activePollMs: number | null = null;
 
   constructor(
     private store: TaskStore,
@@ -78,10 +88,11 @@ export class Scheduler {
     this.running = true;
 
     const interval = this.options.pollIntervalMs ?? 15_000;
+    this.activePollMs = interval;
     this.pollInterval = setInterval(() => this.schedule(), interval);
     this.schedule();
     console.log(
-      `[scheduler] Started (max concurrent: ${this.options.maxConcurrent ?? 2}, max worktrees: ${this.options.maxWorktrees ?? 4})`,
+      `[scheduler] Started (poll interval: ${interval}ms)`,
     );
   }
 
@@ -90,8 +101,25 @@ export class Scheduler {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+      this.activePollMs = null;
     }
     console.log("[scheduler] Stopped");
+  }
+
+  /**
+   * If `newIntervalMs` differs from the currently active timer, restart
+   * the `setInterval` so the new cadence takes effect immediately.
+   */
+  private refreshPollInterval(newIntervalMs?: number): void {
+    if (!this.running || !newIntervalMs) return;
+    if (newIntervalMs === this.activePollMs) return;
+
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
+    this.activePollMs = newIntervalMs;
+    this.pollInterval = setInterval(() => this.schedule(), newIntervalMs);
+    console.log(`[scheduler] Poll interval updated to ${newIntervalMs}ms`);
   }
 
   /**
@@ -119,8 +147,11 @@ export class Scheduler {
     try {
       const tasks = await this.store.listTasks();
       const settings = await this.store.getSettings();
-      const maxConcurrent = this.options.maxConcurrent ?? 2;
-      const maxWorktrees = this.options.maxWorktrees ?? 4;
+      const maxConcurrent = settings.maxConcurrent ?? this.options.maxConcurrent ?? 2;
+      const maxWorktrees = settings.maxWorktrees ?? this.options.maxWorktrees ?? 4;
+
+      // Refresh the poll interval if the persisted setting has changed
+      this.refreshPollInterval(settings.pollIntervalMs);
 
       // Count all tasks with active worktrees (in-progress or in-review with worktree set)
       const activeWorktrees = tasks.filter(
