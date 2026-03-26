@@ -137,6 +137,14 @@ export class Scheduler {
 
       const inProgress = tasks.filter((t) => t.column === "in-progress");
 
+      // Specifying tasks (triage column, status "specifying") run full PI
+      // agent sessions that consume the same resources as execution agents,
+      // so they must occupy concurrency slots alongside in-progress tasks.
+      const specifying = tasks.filter(
+        (t) => t.column === "triage" && t.status === "specifying",
+      );
+      const agentSlots = inProgress.length + specifying.length;
+
       // When a semaphore is provided, factor in its available slots so we
       // don't schedule more tasks than the global limit allows. Triage and
       // merge agents also hold semaphore slots, so availableCount may be
@@ -146,7 +154,7 @@ export class Scheduler {
         : Infinity;
 
       const available = Math.min(
-        maxConcurrent - inProgress.length,
+        maxConcurrent - agentSlots,
         maxWorktrees - activeWorktrees,
         semaphoreAvailable,
       );
