@@ -372,12 +372,60 @@ html, body {
 }
 .form-group textarea { resize: vertical; }
 
-/* === Settings Form === */
-.settings-form {
+/* === Settings Layout === */
+.settings-layout {
+  display: flex;
+  flex-direction: row;
+  min-height: 300px;
+  overflow: hidden;
+}
+
+.settings-sidebar {
+  width: 170px;
+  min-width: 170px;
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  padding: 8px;
+  gap: 2px;
+}
+
+.settings-nav-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.settings-nav-item:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.settings-nav-item.active {
+  background: var(--bg);
+  color: var(--todo);
+  font-weight: 600;
+}
+
+.settings-content {
+  flex: 1;
+  overflow-y: auto;
   padding-bottom: 8px;
+}
+
+.settings-section-heading {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 20px 0;
+  margin: 0;
+  color: var(--text);
 }
 
 /* === Detail Modal === */

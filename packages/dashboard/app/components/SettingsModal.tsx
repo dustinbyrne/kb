@@ -3,6 +3,23 @@ import type { Settings } from "@hai/core";
 import { fetchSettings, updateSettings } from "../api";
 import type { ToastType } from "../hooks/useToast";
 
+/**
+ * Settings sections configuration.
+ *
+ * Each section groups related settings fields under a sidebar nav item.
+ * To add a new section:
+ *   1. Add an entry to SETTINGS_SECTIONS with a unique id and label
+ *   2. Add a corresponding case in renderSectionFields()
+ */
+const SETTINGS_SECTIONS = [
+  { id: "scheduling", label: "Scheduling" },
+  { id: "worktrees", label: "Worktrees" },
+  { id: "commands", label: "Commands" },
+  { id: "merge", label: "Merge" },
+] as const;
+
+type SectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
+
 interface SettingsModalProps {
   onClose: () => void;
   addToast: (message: string, type?: ToastType) => void;
@@ -11,6 +28,7 @@ interface SettingsModalProps {
 export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
   const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: false, worktreeInitCommand: "" });
   const [loading, setLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<SectionId>(SETTINGS_SECTIONS[0].id);
 
   useEffect(() => {
     fetchSettings()
@@ -53,19 +71,12 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
     }
   }, [form, onClose, addToast]);
 
-  return (
-    <div className="modal-overlay open" onClick={handleOverlayClick}>
-      <div className="modal">
-        <div className="modal-header">
-          <h3>Settings</h3>
-          <button className="modal-close" onClick={onClose}>
-            &times;
-          </button>
-        </div>
-        {loading ? (
-          <div style={{ padding: "20px", textAlign: "center" }}>Loading…</div>
-        ) : (
-          <div className="settings-form">
+  const renderSectionFields = () => {
+    switch (activeSection) {
+      case "scheduling":
+        return (
+          <>
+            <h4 className="settings-section-heading">Scheduling</h4>
             <div className="form-group">
               <label htmlFor="maxConcurrent">Max Concurrent Tasks</label>
               <input
@@ -78,20 +89,6 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                   setForm((f) => ({ ...f, maxConcurrent: Number(e.target.value) }))
                 }
               />
-            </div>
-            <div className="form-group">
-              <label htmlFor="maxWorktrees">Max Worktrees</label>
-              <input
-                id="maxWorktrees"
-                type="number"
-                min={1}
-                max={20}
-                value={form.maxWorktrees}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, maxWorktrees: Number(e.target.value) }))
-                }
-              />
-              <small>Limits total git worktrees including in-review tasks</small>
             </div>
             <div className="form-group">
               <label htmlFor="pollIntervalMs">Poll Interval (ms)</label>
@@ -120,6 +117,26 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               </label>
               <small>When enabled, tasks that modify the same files are queued serially to avoid merge conflicts</small>
             </div>
+          </>
+        );
+      case "worktrees":
+        return (
+          <>
+            <h4 className="settings-section-heading">Worktrees</h4>
+            <div className="form-group">
+              <label htmlFor="maxWorktrees">Max Worktrees</label>
+              <input
+                id="maxWorktrees"
+                type="number"
+                min={1}
+                max={20}
+                value={form.maxWorktrees}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, maxWorktrees: Number(e.target.value) }))
+                }
+              />
+              <small>Limits total git worktrees including in-review tasks</small>
+            </div>
             <div className="form-group">
               <label htmlFor="worktreeInitCommand">Worktree Init Command</label>
               <input
@@ -133,6 +150,12 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               />
               <small>Shell command to run in each new worktree after creation</small>
             </div>
+          </>
+        );
+      case "commands":
+        return (
+          <>
+            <h4 className="settings-section-heading">Commands</h4>
             <div className="form-group">
               <label htmlFor="testCommand">Test Command</label>
               <input
@@ -158,6 +181,58 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 }
               />
               <small>Command used to build the project — injected into generated task specs</small>
+            </div>
+          </>
+        );
+      case "merge":
+        return (
+          <>
+            <h4 className="settings-section-heading">Merge</h4>
+            <div className="form-group">
+              <label htmlFor="autoMerge" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <input
+                  id="autoMerge"
+                  type="checkbox"
+                  checked={form.autoMerge}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, autoMerge: e.target.checked }))
+                  }
+                />
+                Auto-merge completed tasks
+              </label>
+              <small>When enabled, tasks that pass review are automatically merged into the main branch</small>
+            </div>
+          </>
+        );
+    }
+  };
+
+  return (
+    <div className="modal-overlay open" onClick={handleOverlayClick}>
+      <div className="modal modal-lg">
+        <div className="modal-header">
+          <h3>Settings</h3>
+          <button className="modal-close" onClick={onClose}>
+            &times;
+          </button>
+        </div>
+        {loading ? (
+          <div style={{ padding: "20px", textAlign: "center" }}>Loading…</div>
+        ) : (
+          <div className="settings-layout">
+            <nav className="settings-sidebar">
+              {SETTINGS_SECTIONS.map((section) => (
+                <button
+                  key={section.id}
+                  className={`settings-nav-item${activeSection === section.id ? " active" : ""}`}
+                  onClick={() => setActiveSection(section.id)}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </nav>
+            <div className="settings-content">
+              {renderSectionFields()}
             </div>
           </div>
         )}
