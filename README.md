@@ -197,6 +197,34 @@ HAI_CLIENT_DIR=/path/to/client ./hai dashboard
 
 **Prerequisites:** Bun ≥ 1.0 (`bun --version`)
 
+## Releases
+
+Pre-built standalone binaries are published automatically via GitHub Actions.
+
+### Downloading binaries
+
+Download the latest binary from the [GitHub Releases](../../releases) page. Each release includes:
+
+- Platform-specific binaries (e.g., `hai-linux-x64`)
+- SHA256 checksum files for verification
+
+### Triggering a release
+
+To create a new release, tag a version and push the tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow will automatically build the binary and create a GitHub Release with the artifact attached.
+
+### CI pipeline
+
+- **Pull requests & pushes to main** — runs tests, build, and verifies the standalone binary can be compiled (`.github/workflows/ci.yml`)
+- **Version tags (`v*`)** — builds the binary and publishes it as a GitHub Release (`.github/workflows/release.yml`)
+- **Manual testing** — maintainers can trigger `.github/workflows/test-release.yml` via the Actions tab to test the build pipeline without publishing
+
 ## License
 
 ISC
