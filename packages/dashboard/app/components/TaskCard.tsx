@@ -47,7 +47,7 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
       const detail = await fetchTaskDetail(task.id);
       onOpenDetail(detail);
     } catch (err: any) {
-      addToast(err.message, "error");
+      addToast("Failed to load task details", "error");
     }
   }, [task.id, onOpenDetail, addToast]);
 
