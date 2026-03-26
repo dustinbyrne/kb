@@ -174,6 +174,20 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
     }
   });
 
+  // Get historical agent logs for a task
+  router.get("/tasks/:id/logs", async (req, res) => {
+    try {
+      const logs = await store.getAgentLogs(req.params.id);
+      res.json(logs);
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: `Task ${req.params.id} not found` });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+    }
+  });
+
   // Get single task with prompt content
   router.get("/tasks/:id", async (req, res) => {
     try {

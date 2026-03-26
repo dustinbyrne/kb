@@ -1,9 +1,9 @@
 import { EventEmitter } from "node:events";
 import { execSync } from "node:child_process";
-import { mkdir, readFile, writeFile, readdir, rename, unlink } from "node:fs/promises";
+import { appendFile, mkdir, readFile, writeFile, readdir, rename, unlink } from "node:fs/promises";
 import { join, sep } from "node:path";
 import { existsSync, watch, type FSWatcher } from "node:fs";
-import type { Task, TaskDetail, TaskCreateInput, TaskAttachment, BoardConfig, Column, MergeResult, Settings } from "./types.js";
+import type { Task, TaskDetail, TaskCreateInput, TaskAttachment, AgentLogEntry, BoardConfig, Column, MergeResult, Settings } from "./types.js";
 import { VALID_TRANSITIONS, DEFAULT_SETTINGS } from "./types.js";
 
 export interface TaskStoreEvents {
@@ -12,6 +12,7 @@ export interface TaskStoreEvents {
   "task:updated": [task: Task];
   "task:deleted": [task: Task];
   "task:merged": [result: MergeResult];
+  "agent:log": [entry: AgentLogEntry];
 }
 
 export class TaskStore extends EventEmitter<TaskStoreEvents> {
@@ -837,6 +838,52 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
       return task;
     });
+  }
+
+  /**
+   * Append an agent log entry to the task's agent log file (JSONL format).
+   * Each entry is a single JSON line appended to `.hai/tasks/{ID}/agent.log`.
+   * Also emits an `agent:log` event for live streaming.
+   *
+   * @param taskId - The task ID (e.g. "HAI-001")
+   * @param text - The text content (delta for "text", tool name for "tool")
+   * @param type - Whether this is a "text" delta or a "tool" invocation marker
+   */
+  async appendAgentLog(taskId: string, text: string, type: "text" | "tool"): Promise<void> {
+    const entry: AgentLogEntry = {
+      timestamp: new Date().toISOString(),
+      taskId,
+      text,
+      type,
+    };
+    const dir = this.taskDir(taskId);
+    const logPath = join(dir, "agent.log");
+    await appendFile(logPath, JSON.stringify(entry) + "\n");
+    this.emit("agent:log", entry);
+  }
+
+  /**
+   * Read all historical agent log entries for a task from its agent log file.
+   * Returns entries in chronological order (oldest first).
+   *
+   * @param taskId - The task ID (e.g. "HAI-001")
+   * @returns Array of agent log entries, empty if no log file exists
+   */
+  async getAgentLogs(taskId: string): Promise<AgentLogEntry[]> {
+    const dir = this.taskDir(taskId);
+    const logPath = join(dir, "agent.log");
+    if (!existsSync(logPath)) return [];
+    const content = await readFile(logPath, "utf-8");
+    const entries: AgentLogEntry[] = [];
+    for (const line of content.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        entries.push(JSON.parse(line) as AgentLogEntry);
+      } catch {
+        // skip malformed lines
+      }
+    }
+    return entries;
   }
 
   getRootDir(): string {

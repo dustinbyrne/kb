@@ -1,4 +1,4 @@
-import type { Task, TaskDetail, TaskAttachment, TaskCreateInput, Column, MergeResult, Settings } from "@hai/core";
+import type { Task, TaskDetail, TaskAttachment, TaskCreateInput, AgentLogEntry, Column, MergeResult, Settings } from "@hai/core";
 
 async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -92,4 +92,8 @@ export async function uploadAttachment(id: string, file: File): Promise<TaskAtta
 
 export async function deleteAttachment(id: string, filename: string): Promise<Task> {
   return api<Task>(`/tasks/${id}/attachments/${filename}`, { method: "DELETE" });
+}
+
+export function fetchAgentLogs(taskId: string): Promise<AgentLogEntry[]> {
+  return api<AgentLogEntry[]>(`/tasks/${taskId}/logs`);
 }

@@ -5,6 +5,8 @@ import type { Task, TaskDetail, TaskAttachment, Column, MergeResult } from "@hai
 import { COLUMN_LABELS, VALID_TRANSITIONS } from "@hai/core";
 import { uploadAttachment, deleteAttachment, updateTask } from "../api";
 import type { ToastType } from "../hooks/useToast";
+import { useAgentLogs } from "../hooks/useAgentLogs";
+import { AgentLogViewer } from "./AgentLogViewer";
 
 function formatTimestamp(iso: string): string {
   const date = new Date(iso);
@@ -52,11 +54,16 @@ export function TaskDetailModal({
   onRetryTask,
   addToast,
 }: TaskDetailModalProps) {
+  const [activeTab, setActiveTab] = useState<"definition" | "agent-log">("definition");
   const [attachments, setAttachments] = useState<TaskAttachment[]>(task.attachments || []);
   const [uploading, setUploading] = useState(false);
   const [dependencies, setDependencies] = useState<string[]>(task.dependencies || []);
   const [showDepDropdown, setShowDepDropdown] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { entries: agentLogEntries, loading: agentLogLoading } = useAgentLogs(
+    task.id,
+    activeTab === "agent-log",
+  );
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -235,6 +242,46 @@ export function TaskDetailModal({
             Created {new Date(task.createdAt).toLocaleDateString()} · Updated{" "}
             {new Date(task.updatedAt).toLocaleDateString()}
           </div>
+          <div className="detail-tabs" style={{ display: "flex", gap: "0", borderBottom: "1px solid var(--border, #333)", marginBottom: "12px" }}>
+            <button
+              className={`detail-tab${activeTab === "definition" ? " detail-tab-active" : ""}`}
+              onClick={() => setActiveTab("definition")}
+              style={{
+                padding: "8px 16px",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === "definition" ? "2px solid var(--accent, #7c5cbf)" : "2px solid transparent",
+                color: activeTab === "definition" ? "var(--text-primary, #fff)" : "var(--text-secondary, #888)",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: activeTab === "definition" ? 600 : 400,
+              }}
+            >
+              Definition
+            </button>
+            <button
+              className={`detail-tab${activeTab === "agent-log" ? " detail-tab-active" : ""}`}
+              onClick={() => setActiveTab("agent-log")}
+              style={{
+                padding: "8px 16px",
+                background: "none",
+                border: "none",
+                borderBottom: activeTab === "agent-log" ? "2px solid var(--accent, #7c5cbf)" : "2px solid transparent",
+                color: activeTab === "agent-log" ? "var(--text-primary, #fff)" : "var(--text-secondary, #888)",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: activeTab === "agent-log" ? 600 : 400,
+              }}
+            >
+              Agent Log
+            </button>
+          </div>
+          {activeTab === "agent-log" ? (
+            <div className="detail-section">
+              <AgentLogViewer entries={agentLogEntries} loading={agentLogLoading} />
+            </div>
+          ) : (
+          <>
           <div className="detail-section">
             {task.prompt ? (
               <div className="markdown-body">
@@ -400,6 +447,8 @@ export function TaskDetailModal({
               <div className="detail-log-empty">(no activity)</div>
             )}
           </div>
+          </>
+          )}
         </div>
         <div className="modal-actions">
           <button className="btn btn-danger btn-sm" onClick={handleDelete}>

@@ -17,6 +17,7 @@ function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
     getSettings: vi.fn().mockResolvedValue({}),
     updateSettings: vi.fn(),
     logEntry: vi.fn().mockResolvedValue(undefined),
+    getAgentLogs: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as TaskStore;
 }
@@ -339,5 +340,37 @@ describe("Attachment routes", () => {
     const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/HAI-001/attachments/nope.png");
 
     expect(res.status).toBe(404);
+  });
+
+  it("GET /tasks/:id/logs — returns agent logs", async () => {
+    const fakeLogs = [
+      { timestamp: "2026-01-01T00:00:00Z", taskId: "HAI-001", text: "Hello", type: "text" },
+      { timestamp: "2026-01-01T00:00:01Z", taskId: "HAI-001", text: "Read", type: "tool" },
+    ];
+    (store.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue(fakeLogs);
+
+    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(fakeLogs);
+    expect(store.getAgentLogs).toHaveBeenCalledWith("HAI-001");
+  });
+
+  it("GET /tasks/:id/logs — returns empty array when no logs", async () => {
+    (store.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("GET /tasks/:id/logs — returns 500 on store error", async () => {
+    (store.getAgentLogs as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("disk error"));
+
+    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("disk error");
   });
 });

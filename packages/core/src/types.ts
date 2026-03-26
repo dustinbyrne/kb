@@ -14,6 +14,18 @@ export interface TaskLogEntry {
   outcome?: string;
 }
 
+/** A single chunk of agent output (text delta or tool invocation) persisted to disk. */
+export interface AgentLogEntry {
+  /** ISO-8601 timestamp of when the entry was recorded */
+  timestamp: string;
+  /** The task this log entry belongs to */
+  taskId: string;
+  /** The text content (delta for "text", tool name for "tool") */
+  text: string;
+  /** Whether this is a text delta or a tool invocation marker */
+  type: "text" | "tool";
+}
+
 export interface TaskAttachment {
   filename: string;
   originalName: string;

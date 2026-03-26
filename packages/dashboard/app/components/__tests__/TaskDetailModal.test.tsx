@@ -7,6 +7,11 @@ vi.mock("../../api", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
   updateTask: vi.fn().mockResolvedValue({}),
+  fetchAgentLogs: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("../../hooks/useAgentLogs", () => ({
+  useAgentLogs: vi.fn(() => ({ entries: [], loading: false, clear: vi.fn() })),
 }));
 
 function makeTask(overrides: Partial<TaskDetail> = {}): TaskDetail {
@@ -481,8 +486,6 @@ describe("TaskDetailModal", () => {
       expect(updateTask).toHaveBeenCalledWith("HAI-099", { dependencies: ["HAI-002"] });
     });
   });
-    });
-  });
 
   it("activity list does not have nested scroll constraints", () => {
     const { container } = render(
@@ -507,5 +510,85 @@ describe("TaskDetailModal", () => {
     const style = (activityList as HTMLElement).style;
     expect(style.overflowY).not.toBe("auto");
     expect(style.maxHeight).toBe("");
+  });
+
+  describe("tab toggle", () => {
+    it("defaults to the Definition tab", () => {
+      const { container } = render(
+        <TaskDetailModal
+          task={makeTask({ prompt: "# Hello\n\nContent" })}
+          onClose={noop}
+          onMoveTask={noopMove}
+          onDeleteTask={noopDelete}
+          onMergeTask={noopMerge}
+          addToast={noop}
+        />,
+      );
+
+      expect(screen.getByText("Definition")).toBeTruthy();
+      expect(screen.getByText("Agent Log")).toBeTruthy();
+      // Definition content should be visible
+      expect(container.querySelector(".markdown-body")).toBeTruthy();
+      // Agent log viewer should not be visible
+      expect(container.querySelector("[data-testid='agent-log-viewer']")).toBeNull();
+    });
+
+    it("switches to Agent Log tab and back", async () => {
+      const { useAgentLogs } = await import("../../hooks/useAgentLogs");
+      const mockUseAgentLogs = vi.mocked(useAgentLogs);
+
+      const { container } = render(
+        <TaskDetailModal
+          task={makeTask({ prompt: "# Hello\n\nContent" })}
+          onClose={noop}
+          onMoveTask={noopMove}
+          onDeleteTask={noopDelete}
+          onMergeTask={noopMerge}
+          addToast={noop}
+        />,
+      );
+
+      // Click Agent Log tab
+      fireEvent.click(screen.getByText("Agent Log"));
+
+      // Agent log viewer should appear
+      expect(container.querySelector("[data-testid='agent-log-viewer']")).toBeTruthy();
+      // Definition content should be hidden
+      expect(container.querySelector(".markdown-body")).toBeNull();
+
+      // Click Definition tab to go back
+      fireEvent.click(screen.getByText("Definition"));
+
+      // Definition content should reappear
+      expect(container.querySelector(".markdown-body")).toBeTruthy();
+      expect(container.querySelector("[data-testid='agent-log-viewer']")).toBeNull();
+    });
+
+    it("passes enabled=true to useAgentLogs only when Agent Log tab is active", async () => {
+      const { useAgentLogs } = await import("../../hooks/useAgentLogs");
+      const mockUseAgentLogs = vi.mocked(useAgentLogs);
+      mockUseAgentLogs.mockClear();
+
+      const { rerender } = render(
+        <TaskDetailModal
+          task={makeTask()}
+          onClose={noop}
+          onMoveTask={noopMove}
+          onDeleteTask={noopDelete}
+          onMergeTask={noopMerge}
+          addToast={noop}
+        />,
+      );
+
+      // Default: Definition tab active → enabled should be false
+      const initialCall = mockUseAgentLogs.mock.calls[mockUseAgentLogs.mock.calls.length - 1];
+      expect(initialCall[1]).toBe(false);
+
+      // Switch to Agent Log tab
+      fireEvent.click(screen.getByText("Agent Log"));
+
+      const afterSwitch = mockUseAgentLogs.mock.calls[mockUseAgentLogs.mock.calls.length - 1];
+      expect(afterSwitch[1]).toBe(true);
+    });
   });
 });

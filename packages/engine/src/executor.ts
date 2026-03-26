@@ -314,14 +314,54 @@ export class TaskExecutor {
         this.createReviewStepTool(task.id, worktreePath, detail.prompt),
       ];
 
+      // ── Agent log buffering ──────────────────────────────────────────
+      // Buffer text deltas and flush to disk periodically to avoid
+      // excessive I/O from many small writes.
+      let textBuffer = "";
+      let flushTimer: ReturnType<typeof setTimeout> | null = null;
+      const FLUSH_INTERVAL_MS = 500;
+      const FLUSH_SIZE_BYTES = 1024;
+
+      const flushTextBuffer = async () => {
+        if (textBuffer.length === 0) return;
+        const chunk = textBuffer;
+        textBuffer = "";
+        try {
+          await this.store.appendAgentLog(task.id, chunk, "text");
+        } catch { /* best-effort persistence */ }
+      };
+
+      const scheduleFlush = () => {
+        if (flushTimer) return;
+        flushTimer = setTimeout(async () => {
+          flushTimer = null;
+          await flushTextBuffer();
+        }, FLUSH_INTERVAL_MS);
+      };
+
       const agentWork = async () => {
         const { session } = await createHaiAgent({
           cwd: worktreePath,
           systemPrompt: EXECUTOR_SYSTEM_PROMPT,
           tools: "coding",
           customTools,
-          onText: (delta) => this.options.onAgentText?.(task.id, delta),
-          onToolStart: (name) => this.options.onAgentTool?.(task.id, name),
+          onText: (delta) => {
+            this.options.onAgentText?.(task.id, delta);
+            textBuffer += delta;
+            if (textBuffer.length >= FLUSH_SIZE_BYTES) {
+              if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+              flushTextBuffer();
+            } else {
+              scheduleFlush();
+            }
+          },
+          onToolStart: (name) => {
+            this.options.onAgentTool?.(task.id, name);
+            // Flush any pending text before recording the tool entry
+            if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+            flushTextBuffer();
+            this.store.appendAgentLog(task.id, name, "tool").catch(() => {});
+          },
         });
 
         try {
@@ -339,6 +379,9 @@ export class TaskExecutor {
             this.options.onComplete?.(task);
           }
         } finally {
+          // Flush remaining buffered text before disposing the session
+          if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+          await flushTextBuffer();
           session.dispose();
         }
       };

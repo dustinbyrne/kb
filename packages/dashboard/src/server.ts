@@ -43,6 +43,35 @@ export function createServer(store: TaskStore, options?: ServerOptions): ReturnT
   // Rate limiting — stricter limit on SSE connections
   app.get("/api/events", rateLimit(RATE_LIMITS.sse), createSSE(store));
 
+  // Per-task SSE endpoint for live agent log streaming
+  app.get("/api/tasks/:id/logs/stream", (req, res) => {
+    const taskId = req.params.id;
+
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    res.flushHeaders();
+
+    res.write(": connected\n\n");
+
+    const onAgentLog = (entry: { taskId: string; text: string; type: string; timestamp: string }) => {
+      if (entry.taskId !== taskId) return;
+      res.write(`event: agent:log\ndata: ${JSON.stringify(entry)}\n\n`);
+    };
+
+    store.on("agent:log", onAgentLog);
+
+    const heartbeat = setInterval(() => {
+      res.write(": heartbeat\n\n");
+    }, 30_000);
+
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      store.off("agent:log", onAgentLog);
+    });
+  });
+
   // Rate limiting — mutation endpoints (POST/PUT/PATCH/DELETE)
   app.use("/api", rateLimit(RATE_LIMITS.api));
 

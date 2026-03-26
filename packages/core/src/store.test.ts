@@ -400,4 +400,50 @@ describe("TaskStore", () => {
       expect(updated.blockedBy).toBeUndefined();
     });
   });
+
+  describe("agent log persistence", () => {
+    it("appendAgentLog creates agent.log and getAgentLogs reads it back", async () => {
+      const task = await createTestTask();
+
+      await store.appendAgentLog(task.id, "Hello world", "text");
+      await store.appendAgentLog(task.id, "Read", "tool");
+
+      const logs = await store.getAgentLogs(task.id);
+      expect(logs).toHaveLength(2);
+      expect(logs[0].text).toBe("Hello world");
+      expect(logs[0].type).toBe("text");
+      expect(logs[0].taskId).toBe(task.id);
+      expect(logs[1].text).toBe("Read");
+      expect(logs[1].type).toBe("tool");
+    });
+
+    it("getAgentLogs returns empty array when no log file exists", async () => {
+      const task = await createTestTask();
+      const logs = await store.getAgentLogs(task.id);
+      expect(logs).toEqual([]);
+    });
+
+    it("appendAgentLog emits agent:log event", async () => {
+      const task = await createTestTask();
+      const events: any[] = [];
+      store.on("agent:log", (entry) => events.push(entry));
+
+      await store.appendAgentLog(task.id, "delta text", "text");
+
+      expect(events).toHaveLength(1);
+      expect(events[0].text).toBe("delta text");
+      expect(events[0].type).toBe("text");
+      expect(events[0].taskId).toBe(task.id);
+    });
+
+    it("handles multiple appends correctly (JSONL format)", async () => {
+      const task = await createTestTask();
+      for (let i = 0; i < 5; i++) {
+        await store.appendAgentLog(task.id, `chunk ${i}`, "text");
+      }
+      const logs = await store.getAgentLogs(task.id);
+      expect(logs).toHaveLength(5);
+      expect(logs[4].text).toBe("chunk 4");
+    });
+  });
 });
