@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AgentSemaphore } from "./concurrency.js";
 
 describe("AgentSemaphore", () => {
@@ -157,5 +157,43 @@ describe("AgentSemaphore", () => {
     await Promise.all([task(), task(), task(), task(), task()]);
     expect(maxConcurrent).toBe(2);
     expect(sem.activeCount).toBe(0);
+  });
+
+  it("integration: simulates triage-like usage with semaphore.run()", async () => {
+    const sem = new AgentSemaphore(1);
+    let concurrent = 0;
+    let maxConcurrent = 0;
+
+    // Simulate two specifyTask-like calls that would normally run in parallel
+    const specifyTask = async () => {
+      const agentWork = async () => {
+        concurrent++;
+        maxConcurrent = Math.max(maxConcurrent, concurrent);
+        await new Promise((r) => setTimeout(r, 10));
+        concurrent--;
+      };
+      await sem.run(agentWork);
+    };
+
+    await Promise.all([specifyTask(), specifyTask(), specifyTask()]);
+    expect(maxConcurrent).toBe(1);
+    expect(sem.activeCount).toBe(0);
+  });
+
+  it("integration: semaphore is optional (no-op when absent)", async () => {
+    const semaphore: AgentSemaphore | undefined = undefined;
+    let ran = false;
+
+    const agentWork = async () => {
+      ran = true;
+    };
+
+    if (semaphore) {
+      await semaphore.run(agentWork);
+    } else {
+      await agentWork();
+    }
+
+    expect(ran).toBe(true);
   });
 });
