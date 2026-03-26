@@ -14,8 +14,20 @@ export function fetchTasks(): Promise<Task[]> {
   return api<Task[]>("/tasks");
 }
 
-export function fetchTaskDetail(id: string): Promise<TaskDetail> {
-  return api<TaskDetail>(`/tasks/${id}`);
+export async function fetchTaskDetail(id: string): Promise<TaskDetail> {
+  const maxAttempts = 2; // 1 initial + 1 retry
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const res = await fetch(`/api/tasks/${id}`, {
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await res.json();
+    if (res.ok) return data as TaskDetail;
+    if (attempt === maxAttempts) {
+      throw new Error((data as { error?: string }).error || "Request failed");
+    }
+  }
+  // unreachable
+  throw new Error("Request failed");
 }
 
 export function createTask(input: TaskCreateInput): Promise<Task> {
