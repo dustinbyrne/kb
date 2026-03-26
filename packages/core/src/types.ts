@@ -59,6 +59,9 @@ export interface Settings {
   pollIntervalMs: number;
   groupOverlappingFiles: boolean;
   autoMerge: boolean;
+  /** Shell command to run inside each new worktree immediately after creation.
+   *  Useful for project-specific setup (e.g. `pnpm install`, `cp .env.local .env`). */
+  worktreeInitCommand?: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -67,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pollIntervalMs: 15000,
   groupOverlappingFiles: false,
   autoMerge: false,
+  worktreeInitCommand: undefined,
 };
 
 export interface BoardConfig {
