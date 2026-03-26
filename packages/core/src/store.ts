@@ -118,10 +118,29 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     return task;
   }
 
+  /**
+   * Read a task's JSON and prompt content.
+   *
+   * Retries once after a short delay on non-ENOENT errors to handle
+   * transient read failures caused by concurrent `writeFile` calls
+   * (e.g. partial JSON from a non-atomic write during executor updates).
+   */
   async getTask(id: string): Promise<TaskDetail> {
     const dir = this.taskDir(id);
-    const data = await readFile(join(dir, "task.json"), "utf-8");
-    const task = JSON.parse(data) as Task;
+    const taskPath = join(dir, "task.json");
+
+    let task: Task;
+    try {
+      const data = await readFile(taskPath, "utf-8");
+      task = JSON.parse(data) as Task;
+    } catch (err: any) {
+      // If the file doesn't exist, propagate immediately (true 404)
+      if (err.code === "ENOENT") throw err;
+      // Transient error (e.g. partial read / JSON parse failure) — retry once
+      await new Promise((r) => setTimeout(r, 50));
+      const data = await readFile(taskPath, "utf-8");
+      task = JSON.parse(data) as Task;
+    }
 
     let prompt = "";
     const promptPath = join(dir, "PROMPT.md");

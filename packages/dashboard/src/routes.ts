@@ -107,7 +107,14 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
       const task = await store.getTask(req.params.id);
       res.json(task);
     } catch (err: any) {
-      res.status(404).json({ error: `Task ${req.params.id} not found` });
+      // ENOENT means the task directory/file genuinely doesn't exist → 404.
+      // Any other error (e.g. JSON parse failure from a concurrent partial write,
+      // or a transient FS error) should surface as 500 so clients can retry.
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: `Task ${req.params.id} not found` });
+      } else {
+        res.status(500).json({ error: err.message || "Internal server error" });
+      }
     }
   });
 
