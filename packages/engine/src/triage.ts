@@ -192,6 +192,7 @@ export class TriageProcessor {
 
     console.log(`[triage] Specifying ${task.id}: ${task.title || task.description.slice(0, 60)}`);
     this.options.onSpecifyStart?.(task);
+    await this.store.updateTask(task.id, { status: "specifying" });
 
     try {
       const detail = await this.store.getTask(task.id);
@@ -211,6 +212,7 @@ export class TriageProcessor {
         await session.prompt(agentPrompt);
 
         // Move to todo
+        await this.store.updateTask(task.id, { status: null });
         await this.store.moveTask(task.id, "todo");
         console.log(`[triage] ✓ ${task.id} specified and moved to todo`);
         this.options.onSpecifyComplete?.(task);
@@ -218,6 +220,7 @@ export class TriageProcessor {
         session.dispose();
       }
     } catch (err: any) {
+      await this.store.updateTask(task.id, { status: null }).catch(() => {});
       console.error(`[triage] ✗ ${task.id} specification failed:`, err.message);
       this.options.onSpecifyError?.(task, err);
     } finally {

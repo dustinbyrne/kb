@@ -20,7 +20,7 @@ const COLUMN_TEXT_COLOR_MAP: Record<Column, string> = {
   done: "var(--done)",
 };
 
-const ACTIVE_STATUSES = new Set(["planning", "researching", "executing", "finalizing", "merging"]);
+const ACTIVE_STATUSES = new Set(["planning", "researching", "executing", "finalizing", "merging", "specifying"]);
 
 interface TaskCardProps {
   task: Task;
