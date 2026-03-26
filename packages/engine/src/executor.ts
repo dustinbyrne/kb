@@ -2,13 +2,51 @@ import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskStore, Task, TaskDetail, StepStatus } from "@hai/core";
-import { Type } from "@mariozechner/pi-ai";
+import { Type, type Static } from "@mariozechner/pi-ai";
 import { createHaiAgent } from "./pi.js";
 import { reviewStep } from "./reviewer.js";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { AgentSemaphore } from "./concurrency.js";
 
 const STEP_STATUSES: StepStatus[] = ["pending", "in-progress", "done", "skipped"];
+
+// ── Tool parameter schemas (module-level for reuse in ToolDefinition generics) ──
+
+const taskUpdateParams = Type.Object({
+  step: Type.Number({ description: "Step number (0-indexed)" }),
+  status: Type.Union(
+    STEP_STATUSES.map((s) => Type.Literal(s)),
+    { description: "New status: pending, in-progress, done, or skipped" },
+  ),
+});
+
+const taskLogParams = Type.Object({
+  message: Type.String({ description: "What happened" }),
+  outcome: Type.Optional(Type.String({ description: "Result or consequence (optional)" })),
+});
+
+const taskCreateParams = Type.Object({
+  description: Type.String({ description: "What needs to be done" }),
+  dependencies: Type.Optional(
+    Type.Array(Type.String(), { description: "Task IDs this new task depends on (e.g. [\"HAI-001\"])" }),
+  ),
+});
+
+const reviewStepParams = Type.Object({
+  step: Type.Number({ description: "Step number to review" }),
+  type: Type.Union(
+    [Type.Literal("plan"), Type.Literal("code")],
+    { description: 'Review type: "plan" or "code"' },
+  ),
+  step_name: Type.String({ description: "Name of the step being reviewed" }),
+  baseline: Type.Optional(
+    Type.String({
+      description:
+        "Git commit SHA for code review diff baseline. " +
+        "Capture HEAD before starting a step and pass it here.",
+    }),
+  ),
+});
 
 const EXECUTOR_SYSTEM_PROMPT = `You are a task execution agent for "hai", an AI-orchestrated task board.
 
@@ -235,14 +273,8 @@ export class TaskExecutor {
         "Update a step's status. Call before starting a step (in-progress), " +
         "after completing it (done), or to skip it (skipped). " +
         "The board updates in real-time.",
-      parameters: Type.Object({
-        step: Type.Number({ description: "Step number (0-indexed)" }),
-        status: Type.Union(
-          STEP_STATUSES.map((s) => Type.Literal(s)),
-          { description: "New status: pending, in-progress, done, or skipped" },
-        ),
-      }),
-      execute: async (_id, params) => {
+      parameters: taskUpdateParams,
+      execute: async (_id: string, params: Static<typeof taskUpdateParams>) => {
         const { step, status } = params;
         const task = await store.updateStep(taskId, step, status as StepStatus);
         const stepInfo = task.steps[step];
@@ -266,11 +298,8 @@ export class TaskExecutor {
       description:
         "Log an important action, decision, or issue for this task. " +
         "Use for significant events — not every small step.",
-      parameters: Type.Object({
-        message: Type.String({ description: "What happened" }),
-        outcome: Type.Optional(Type.String({ description: "Result or consequence (optional)" })),
-      }),
-      execute: async (_id, params) => {
+      parameters: taskLogParams,
+      execute: async (_id: string, params: Static<typeof taskLogParams>) => {
         await store.logEntry(taskId, params.message, params.outcome);
         return {
           content: [{ type: "text" as const, text: `Logged: ${params.message}` }],
@@ -290,13 +319,8 @@ export class TaskExecutor {
         "The task goes into triage where it will be specified by the AI. " +
         "Optionally set dependencies (e.g., the new task depends on the current one, " +
         "or the current task should wait for the new one).",
-      parameters: Type.Object({
-        description: Type.String({ description: "What needs to be done" }),
-        dependencies: Type.Optional(
-          Type.Array(Type.String(), { description: "Task IDs this new task depends on (e.g. [\"HAI-001\"])" }),
-        ),
-      }),
-      execute: async (_id, params) => {
+      parameters: taskCreateParams,
+      execute: async (_id: string, params: Static<typeof taskCreateParams>) => {
         const task = await store.createTask({
           description: params.description,
           dependencies: params.dependencies,
@@ -329,22 +353,8 @@ export class TaskExecutor {
         "Returns APPROVE, REVISE, RETHINK, or UNAVAILABLE. " +
         "Call at step boundaries based on the task's review level. " +
         "Skip reviews for Step 0 (Preflight) and the final documentation step.",
-      parameters: Type.Object({
-        step: Type.Number({ description: "Step number to review" }),
-        type: Type.Union(
-          [Type.Literal("plan"), Type.Literal("code")],
-          { description: 'Review type: "plan" or "code"' },
-        ),
-        step_name: Type.String({ description: "Name of the step being reviewed" }),
-        baseline: Type.Optional(
-          Type.String({
-            description:
-              "Git commit SHA for code review diff baseline. " +
-              "Capture HEAD before starting a step and pass it here.",
-          }),
-        ),
-      }),
-      execute: async (_toolCallId, params) => {
+      parameters: reviewStepParams,
+      execute: async (_toolCallId: string, params: Static<typeof reviewStepParams>) => {
         const { step, type: reviewType, step_name, baseline } = params;
 
         console.log(`[reviewer] ${taskId}: ${reviewType} review for Step ${step} (${step_name})`);
