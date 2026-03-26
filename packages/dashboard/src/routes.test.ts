@@ -4,6 +4,7 @@ import http from "node:http";
 import { createApiRoutes } from "./routes.js";
 import type { TaskStore, TaskAttachment } from "@hai/core";
 import type { TaskDetail } from "@hai/core";
+import type { AuthStorageLike } from "./routes.js";
 
 function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
   return {
@@ -372,5 +373,180 @@ describe("Attachment routes", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("disk error");
+  });
+});
+
+// --- Auth route tests ---
+
+function createMockAuthStorage(overrides: Partial<AuthStorageLike> = {}): AuthStorageLike {
+  return {
+    reload: vi.fn(),
+    getOAuthProviders: vi.fn().mockReturnValue([
+      { id: "anthropic", name: "Anthropic" },
+    ]),
+    hasAuth: vi.fn().mockReturnValue(false),
+    login: vi.fn().mockImplementation((_provider: string, callbacks: any) => {
+      // Simulate onAuth callback with a URL, then resolve
+      callbacks.onAuth({ url: "https://auth.example.com/login", instructions: "Open in browser" });
+      return Promise.resolve();
+    }),
+    logout: vi.fn(),
+    ...overrides,
+  } as unknown as AuthStorageLike;
+}
+
+describe("GET /auth/status", () => {
+  let store: TaskStore;
+  let authStorage: AuthStorageLike;
+
+  beforeEach(() => {
+    store = createMockStore();
+    authStorage = createMockAuthStorage();
+  });
+
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store, { authStorage }));
+    return app;
+  }
+
+  it("returns provider list with auth status", async () => {
+    (authStorage.hasAuth as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+    const res = await GET(buildApp(), "/api/auth/status");
+
+    expect(res.status).toBe(200);
+    expect(res.body.providers).toEqual([
+      { id: "anthropic", name: "Anthropic", authenticated: true },
+    ]);
+    expect(authStorage.reload).toHaveBeenCalled();
+  });
+
+  it("returns unauthenticated status", async () => {
+    (authStorage.hasAuth as ReturnType<typeof vi.fn>).mockReturnValue(false);
+
+    const res = await GET(buildApp(), "/api/auth/status");
+
+    expect(res.status).toBe(200);
+    expect(res.body.providers[0].authenticated).toBe(false);
+  });
+
+  it("returns 500 on error", async () => {
+    (authStorage.getOAuthProviders as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("storage error");
+    });
+
+    const res = await GET(buildApp(), "/api/auth/status");
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("storage error");
+  });
+});
+
+describe("POST /auth/login", () => {
+  let store: TaskStore;
+  let authStorage: AuthStorageLike;
+
+  beforeEach(() => {
+    store = createMockStore();
+    authStorage = createMockAuthStorage();
+  });
+
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store, { authStorage }));
+    return app;
+  }
+
+  it("returns auth URL for valid provider", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/login", JSON.stringify({ provider: "anthropic" }), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.url).toBe("https://auth.example.com/login");
+    expect(res.body.instructions).toBe("Open in browser");
+  });
+
+  it("returns 400 when provider is missing", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/login", JSON.stringify({}), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("provider is required");
+  });
+
+  it("returns 400 for unknown provider", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/login", JSON.stringify({ provider: "unknown" }), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("Unknown provider");
+  });
+
+  it("returns 500 when login fails", async () => {
+    (authStorage.login as ReturnType<typeof vi.fn>).mockImplementation((_provider: string, callbacks: any) => {
+      return Promise.reject(new Error("OAuth failed"));
+    });
+
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/login", JSON.stringify({ provider: "anthropic" }), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("OAuth failed");
+  });
+});
+
+describe("POST /auth/logout", () => {
+  let store: TaskStore;
+  let authStorage: AuthStorageLike;
+
+  beforeEach(() => {
+    store = createMockStore();
+    authStorage = createMockAuthStorage();
+  });
+
+  function buildApp() {
+    const app = express();
+    app.use(express.json());
+    app.use("/api", createApiRoutes(store, { authStorage }));
+    return app;
+  }
+
+  it("removes credentials for a provider", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/logout", JSON.stringify({ provider: "anthropic" }), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(authStorage.logout).toHaveBeenCalledWith("anthropic");
+  });
+
+  it("returns 400 when provider is missing", async () => {
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/logout", JSON.stringify({}), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("provider is required");
+  });
+
+  it("returns 500 on error", async () => {
+    (authStorage.logout as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      throw new Error("logout failed");
+    });
+
+    const res = await REQUEST(buildApp(), "POST", "/api/auth/logout", JSON.stringify({ provider: "anthropic" }), {
+      "Content-Type": "application/json",
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe("logout failed");
   });
 });

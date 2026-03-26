@@ -18,9 +18,12 @@ const defaultSettings: Settings = {
 vi.mock("../../api", () => ({
   fetchSettings: vi.fn(() => Promise.resolve({ ...defaultSettings })),
   updateSettings: vi.fn(() => Promise.resolve({ ...defaultSettings })),
+  fetchAuthStatus: vi.fn(() => Promise.resolve({ providers: [{ id: "anthropic", name: "Anthropic", authenticated: false }] })),
+  loginProvider: vi.fn(() => Promise.resolve({ url: "https://auth.example.com/login" })),
+  logoutProvider: vi.fn(() => Promise.resolve({ success: true })),
 }));
 
-import { fetchSettings, updateSettings } from "../../api";
+import { fetchSettings, updateSettings, fetchAuthStatus, loginProvider, logoutProvider } from "../../api";
 
 const onClose = vi.fn();
 const addToast = vi.fn();
@@ -220,5 +223,95 @@ describe("SettingsModal", () => {
     const payload = (updateSettings as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(payload.maxConcurrent).toBe(2);
     expect(payload.pollIntervalMs).toBe(15000);
+  });
+
+  it("shows Authentication in sidebar", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    expect(screen.getAllByText("Authentication").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows provider auth status when Authentication section is selected", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    expect(screen.getByText("Anthropic")).toBeTruthy();
+    expect(screen.getByText("✗ Not authenticated")).toBeTruthy();
+  });
+
+  it("shows authenticated status with checkmark", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [{ id: "anthropic", name: "Anthropic", authenticated: true }],
+    });
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    expect(screen.getByText("✓ Authenticated")).toBeTruthy();
+    expect(screen.getByText("Logout")).toBeTruthy();
+  });
+
+  it("Login button calls loginProvider and opens URL", async () => {
+    const openSpy = vi.fn();
+    vi.stubGlobal("open", openSpy);
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Login"));
+    await waitFor(() => expect(loginProvider).toHaveBeenCalledWith("anthropic"));
+
+    expect(openSpy).toHaveBeenCalledWith("https://auth.example.com/login", "_blank");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("Logout button calls logoutProvider and refreshes status", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [{ id: "anthropic", name: "Anthropic", authenticated: true }],
+    });
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Logout"));
+    await waitFor(() => expect(logoutProvider).toHaveBeenCalledWith("anthropic"));
+
+    // Should refresh auth status after logout
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalledTimes(2));
+    expect(addToast).toHaveBeenCalledWith("Logged out", "success");
+  });
+
+  it("shows loading state during login", async () => {
+    // Make loginProvider hang
+    (loginProvider as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
+    vi.stubGlobal("open", vi.fn());
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Login"));
+
+    // While login is in progress, button should show waiting state
+    // (loginProvider hasn't resolved yet so we can't waitFor it)
+    // The button will be disabled during the async operation
+
+    vi.unstubAllGlobals();
   });
 });

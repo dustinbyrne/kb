@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { Settings } from "@hai/core";
-import { fetchSettings, updateSettings } from "../api";
+import { fetchSettings, updateSettings, fetchAuthStatus, loginProvider, logoutProvider } from "../api";
+import type { AuthProvider } from "../api";
 import type { ToastType } from "../hooks/useToast";
 
 /**
@@ -10,6 +11,14 @@ import type { ToastType } from "../hooks/useToast";
  * To add a new section:
  *   1. Add an entry to SETTINGS_SECTIONS with a unique id and label
  *   2. Add a corresponding case in renderSectionFields()
+ *
+ * Sections:
+ *   - general: Task prefix configuration
+ *   - scheduling: Concurrency, poll interval, file overlap serialization
+ *   - worktrees: Worktree limits, init commands, recycling
+ *   - commands: Test and build command configuration
+ *   - merge: Auto-merge settings
+ *   - authentication: OAuth provider status, login/logout (operates independently of Save)
  */
 const SETTINGS_SECTIONS = [
   { id: "general", label: "General" },
@@ -17,6 +26,7 @@ const SETTINGS_SECTIONS = [
   { id: "worktrees", label: "Worktrees" },
   { id: "commands", label: "Commands" },
   { id: "merge", label: "Merge" },
+  { id: "authentication", label: "Authentication" },
 ] as const;
 
 type SectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
@@ -32,6 +42,12 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState<SectionId>(SETTINGS_SECTIONS[0].id);
   const [prefixError, setPrefixError] = useState<string | null>(null);
 
+  // Auth state (independent of the settings save flow)
+  const [authProviders, setAuthProviders] = useState<AuthProvider[]>([]);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authActionInProgress, setAuthActionInProgress] = useState<string | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     fetchSettings()
       .then((s) => {
@@ -43,6 +59,73 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
         setLoading(false);
       });
   }, [addToast]);
+
+  // Load auth status when the authentication section is active
+  const loadAuthStatus = useCallback(async () => {
+    try {
+      const { providers } = await fetchAuthStatus();
+      setAuthProviders(providers);
+    } catch {
+      // Silently fail — auth may not be configured
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "authentication") {
+      setAuthLoading(true);
+      loadAuthStatus().finally(() => setAuthLoading(false));
+    }
+    // Clean up polling when leaving auth section
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [activeSection, loadAuthStatus]);
+
+  const handleLogin = useCallback(async (providerId: string) => {
+    setAuthActionInProgress(providerId);
+    try {
+      const { url } = await loginProvider(providerId);
+      window.open(url, "_blank");
+
+      // Poll for auth completion every 2 seconds
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const { providers } = await fetchAuthStatus();
+          setAuthProviders(providers);
+          const provider = providers.find((p) => p.id === providerId);
+          if (provider?.authenticated) {
+            if (pollIntervalRef.current) {
+              clearInterval(pollIntervalRef.current);
+              pollIntervalRef.current = null;
+            }
+            setAuthActionInProgress(null);
+            addToast("Login successful", "success");
+          }
+        } catch {
+          // Continue polling on transient errors
+        }
+      }, 2000);
+    } catch (err: any) {
+      addToast(err.message || "Login failed", "error");
+      setAuthActionInProgress(null);
+    }
+  }, [addToast, loadAuthStatus]);
+
+  const handleLogout = useCallback(async (providerId: string) => {
+    setAuthActionInProgress(providerId);
+    try {
+      await logoutProvider(providerId);
+      await loadAuthStatus();
+      addToast("Logged out", "success");
+    } catch (err: any) {
+      addToast(err.message || "Logout failed", "error");
+    } finally {
+      setAuthActionInProgress(null);
+    }
+  }, [addToast, loadAuthStatus]);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -260,6 +343,61 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               </label>
               <small>When disabled, merge commit messages omit the task ID from the scope (e.g. <code>feat: ...</code> instead of <code>feat(HAI-001): ...</code>)</small>
             </div>
+          </>
+        );
+      case "authentication":
+        return (
+          <>
+            <h4 className="settings-section-heading">Authentication</h4>
+            {authLoading ? (
+              <div style={{ padding: "8px 0" }}>Loading authentication status…</div>
+            ) : authProviders.length === 0 ? (
+              <div style={{ padding: "8px 0", color: "var(--color-muted, #888)" }}>
+                No OAuth providers available
+              </div>
+            ) : (
+              authProviders.map((provider) => (
+                <div key={provider.id} className="form-group" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <strong>{provider.name}</strong>
+                    <span
+                      style={{ marginLeft: "8px" }}
+                      data-testid={`auth-status-${provider.id}`}
+                    >
+                      {provider.authenticated ? (
+                        <span style={{ color: "var(--color-success, #27ae60)" }}>✓ Authenticated</span>
+                      ) : (
+                        <span style={{ color: "var(--color-error, #e74c3c)" }}>✗ Not authenticated</span>
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    {authActionInProgress === provider.id ? (
+                      <button className="btn btn-sm" disabled>
+                        {provider.authenticated ? "Logging out…" : "Waiting for login…"}
+                      </button>
+                    ) : provider.authenticated ? (
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => handleLogout(provider.id)}
+                      >
+                        Logout
+                      </button>
+                    ) : (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => handleLogin(provider.id)}
+                      >
+                        Login
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+            <small style={{ display: "block", marginTop: "8px" }}>
+              Login and logout take effect immediately — no need to save.
+            </small>
           </>
         );
     }

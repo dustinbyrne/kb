@@ -97,3 +97,33 @@ export async function deleteAttachment(id: string, filename: string): Promise<Ta
 export function fetchAgentLogs(taskId: string): Promise<AgentLogEntry[]> {
   return api<AgentLogEntry[]>(`/tasks/${taskId}/logs`);
 }
+
+// --- Auth API ---
+
+/** OAuth provider with current authentication status */
+export interface AuthProvider {
+  id: string;
+  name: string;
+  authenticated: boolean;
+}
+
+/** Fetch authentication status for all OAuth providers */
+export function fetchAuthStatus(): Promise<{ providers: AuthProvider[] }> {
+  return api<{ providers: AuthProvider[] }>("/auth/status");
+}
+
+/** Initiate OAuth login for a provider. Returns the auth URL to open in a new tab. */
+export function loginProvider(provider: string): Promise<{ url: string; instructions?: string }> {
+  return api<{ url: string; instructions?: string }>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  });
+}
+
+/** Logout from a provider, removing stored credentials. */
+export function logoutProvider(provider: string): Promise<{ success: boolean }> {
+  return api<{ success: boolean }>("/auth/logout", {
+    method: "POST",
+    body: JSON.stringify({ provider }),
+  });
+}

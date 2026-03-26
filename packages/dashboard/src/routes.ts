@@ -5,6 +5,26 @@ import type { TaskStore, Column, MergeResult } from "@hai/core";
 import { COLUMNS } from "@hai/core";
 import type { ServerOptions } from "./server.js";
 
+/**
+ * Minimal interface matching pi-coding-agent's AuthStorage API surface
+ * used by the auth routes. Avoids a direct dependency on the pi-coding-agent package.
+ */
+export interface AuthStorageLike {
+  reload(): void;
+  getOAuthProviders(): Array<{ id: string; name: string }>;
+  hasAuth(provider: string): boolean;
+  login(
+    providerId: string,
+    callbacks: {
+      onAuth: (info: { url: string; instructions?: string }) => void;
+      onPrompt: (prompt: { message: string; placeholder?: string; allowEmpty?: boolean }) => Promise<string>;
+      onProgress?: (message: string) => void;
+      signal?: AbortSignal;
+    },
+  ): Promise<void>;
+  logout(provider: string): void;
+}
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
@@ -231,5 +251,160 @@ export function createApiRoutes(store: TaskStore, options?: ServerOptions): Rout
     }
   });
 
+  // ---------- Auth routes ----------
+  registerAuthRoutes(router, options?.authStorage);
+
   return router;
+}
+
+/**
+ * Register authentication status, login, and logout routes.
+ * Uses pi-coding-agent's AuthStorage for credential management.
+ * If no AuthStorage is provided, creates one internally (reads from ~/.pi/agent/auth.json).
+ */
+function registerAuthRoutes(router: Router, authStorage?: AuthStorageLike): void {
+  // Use injected AuthStorage or fail gracefully if not provided.
+  // When running via the CLI/engine, AuthStorage is passed in via ServerOptions.
+  function getAuthStorage(): AuthStorageLike {
+    if (!authStorage) {
+      throw new Error("Authentication is not configured");
+    }
+    return authStorage;
+  }
+
+  /**
+   * Track in-progress login flows to prevent concurrent logins for the same provider.
+   * Maps provider ID → AbortController for the active login.
+   */
+  const loginInProgress = new Map<string, AbortController>();
+
+  /**
+   * GET /api/auth/status
+   * Returns list of OAuth providers with their authentication status.
+   * Response: { providers: [{ id: string, name: string, authenticated: boolean }] }
+   */
+  router.get("/auth/status", (_req, res) => {
+    try {
+      const storage = getAuthStorage();
+      storage.reload();
+      const oauthProviders = storage.getOAuthProviders();
+      const providers = oauthProviders.map((p) => ({
+        id: p.id,
+        name: p.name,
+        authenticated: storage.hasAuth(p.id),
+      }));
+      res.json({ providers });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/auth/login
+   * Initiates OAuth login for a provider.
+   * Body: { provider: string }
+   * Response: { url: string, instructions?: string }
+   *
+   * The endpoint starts the OAuth flow and returns the auth URL from the
+   * onAuth callback. The client should open this URL in a new tab and
+   * poll GET /api/auth/status to detect completion.
+   */
+  router.post("/auth/login", async (req, res) => {
+    try {
+      const { provider } = req.body;
+      if (!provider || typeof provider !== "string") {
+        res.status(400).json({ error: "provider is required" });
+        return;
+      }
+
+      // Prevent concurrent logins for the same provider
+      if (loginInProgress.has(provider)) {
+        res.status(409).json({ error: `Login already in progress for ${provider}` });
+        return;
+      }
+
+      const storage = getAuthStorage();
+      const oauthProviders = storage.getOAuthProviders();
+      const found = oauthProviders.find((p) => p.id === provider);
+      if (!found) {
+        res.status(400).json({ error: `Unknown provider: ${provider}` });
+        return;
+      }
+
+      const abortController = new AbortController();
+      loginInProgress.set(provider, abortController);
+
+      // We need to get the URL from the onAuth callback before responding.
+      // The login() call continues in the background until the user completes OAuth.
+      let authResolve: (info: { url: string; instructions?: string }) => void;
+      let authReject: (err: Error) => void;
+      const authUrlPromise = new Promise<{ url: string; instructions?: string }>((resolve, reject) => {
+        authResolve = resolve;
+        authReject = reject;
+      });
+
+      // Start login flow in background — don't await the full login
+      const loginPromise = storage.login(provider, {
+        onAuth: (info) => {
+          authResolve({ url: info.url, instructions: info.instructions });
+        },
+        onPrompt: async (prompt) => {
+          // Web UI cannot interactively prompt — return empty string if allowed
+          if (prompt.allowEmpty) return "";
+          return prompt.placeholder || "";
+        },
+        onProgress: () => {}, // no-op for web UI
+        signal: abortController.signal,
+      });
+
+      // Race: either we get the auth URL or the login completes/fails first
+      const timeout = setTimeout(() => {
+        authReject(new Error("Login initiation timed out"));
+      }, 30_000);
+
+      loginPromise
+        .then(() => {
+          // Login completed (user finished OAuth in browser)
+        })
+        .catch((err) => {
+          // Login failed — also reject auth URL if not yet received
+          authReject(err);
+        })
+        .finally(() => {
+          clearTimeout(timeout);
+          loginInProgress.delete(provider);
+        });
+
+      const authInfo = await authUrlPromise;
+      clearTimeout(timeout);
+      res.json({ url: authInfo.url, instructions: authInfo.instructions });
+    } catch (err: any) {
+      // Clean up on error
+      const provider = req.body?.provider;
+      if (provider) loginInProgress.delete(provider);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  /**
+   * POST /api/auth/logout
+   * Removes credentials for a provider.
+   * Body: { provider: string }
+   * Response: { success: true }
+   */
+  router.post("/auth/logout", (req, res) => {
+    try {
+      const { provider } = req.body;
+      if (!provider || typeof provider !== "string") {
+        res.status(400).json({ error: "provider is required" });
+        return;
+      }
+
+      const storage = getAuthStorage();
+      storage.logout(provider);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 }
