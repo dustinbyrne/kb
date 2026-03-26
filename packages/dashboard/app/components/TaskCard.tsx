@@ -51,7 +51,7 @@ export function TaskCard({ task, queued, onOpenDetail, addToast }: TaskCardProps
     }
   }, [task.id, onOpenDetail, addToast]);
 
-  const isAgentActive = !queued && ACTIVE_STATUSES.has(task.status as string);
+  const isAgentActive = !queued && (task.column === "in-progress" || ACTIVE_STATUSES.has(task.status as string));
   const cardClass = `card${dragging ? " dragging" : ""}${queued ? " queued" : ""}${isAgentActive ? " agent-active" : ""}`;
 
   return (
