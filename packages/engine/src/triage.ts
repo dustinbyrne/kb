@@ -107,6 +107,32 @@ Commits at step boundaries. All commits include the task ID:
 - Commit without the task ID prefix
 \`\`\`
 
+## Testing requirements — CRITICAL
+
+The Testing & Verification step MUST include REAL automated tests that run and
+assert correctness. Not typechecks. Not manual verification. Not "build passes."
+Actual test cases with assertions.
+
+**Before writing the spec, check if the project has a test framework:**
+- Look for test config files (vitest.config.ts, jest.config.*, .mocharc.*, etc.)
+- Look for existing test files (*.test.ts, *.spec.ts, __tests__/, etc.)  
+- Look for test scripts in package.json
+
+**If NO test framework exists:**
+1. Create a prerequisite task: \`hai task create "Set up test framework (vitest) with initial test structure"\`
+2. Note the new task ID in the output
+3. Add it as a dependency in the current task's Dependencies section
+4. The Testing step should reference the real test command that the prerequisite will set up
+
+**If a test framework exists:**
+- The Testing step MUST run the actual test suite command
+- Each implementation step should include targeted tests for the code being changed
+- The final Testing step runs the FULL suite
+
+**NEVER** write a testing step that consists only of typechecks, builds, or
+manual verification. If you cannot write real tests, the task needs a dependency
+on test infrastructure first.
+
 ## Guidelines
 - Read the project structure and relevant source files to understand context BEFORE writing
 - Be specific — name actual files, functions, and patterns from the codebase
