@@ -117,7 +117,7 @@ export function TaskDetailModal({
           <div className="detail-section">
             <h4>PROMPT.md</h4>
             {task.prompt ? (
-              <div className="detail-prompt markdown-body">
+              <div className="markdown-body">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {task.prompt}
                 </ReactMarkdown>
