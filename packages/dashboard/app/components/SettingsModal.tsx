@@ -9,7 +9,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
-  const [form, setForm] = useState<Settings>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: false });
+  const [form, setForm] = useState<Settings & { worktreeInitCommand?: string }>({ maxConcurrent: 2, maxWorktrees: 4, pollIntervalMs: 15000, groupOverlappingFiles: false, autoMerge: false, worktreeInitCommand: "" });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +41,11 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
 
   const handleSave = useCallback(async () => {
     try {
-      await updateSettings(form);
+      const payload = {
+        ...form,
+        worktreeInitCommand: form.worktreeInitCommand?.trim() || undefined,
+      };
+      await updateSettings(payload);
       addToast("Settings saved", "success");
       onClose();
     } catch (err: any) {
@@ -115,6 +119,19 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 Serialize tasks with overlapping files
               </label>
               <small>When enabled, tasks that modify the same files are queued serially to avoid merge conflicts</small>
+            </div>
+            <div className="form-group">
+              <label htmlFor="worktreeInitCommand">Worktree Init Command</label>
+              <input
+                id="worktreeInitCommand"
+                type="text"
+                placeholder="pnpm install"
+                value={form.worktreeInitCommand || ""}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, worktreeInitCommand: e.target.value }))
+                }
+              />
+              <small>Shell command to run in each new worktree after creation</small>
             </div>
           </div>
         )}
