@@ -61,18 +61,20 @@ export function TaskDetailModal({
     }
   }, [task.id, onDeleteTask, onClose, addToast]);
 
-  const handleMerge = useCallback(async () => {
+  const handleMerge = useCallback(() => {
     if (!confirm(`Merge ${task.id} into the current branch?`)) return;
-    try {
-      const result = await onMergeTask(task.id);
-      onClose();
-      const msg = result.merged
-        ? `Merged ${task.id} (branch: ${result.branch})`
-        : `Closed ${task.id} (${result.error || "no branch to merge"})`;
-      addToast(msg, "success");
-    } catch (err: any) {
-      addToast(err.message, "error");
-    }
+    onClose();
+    addToast(`Merging ${task.id}...`, "info");
+    onMergeTask(task.id)
+      .then((result) => {
+        const msg = result.merged
+          ? `Merged ${task.id} (branch: ${result.branch})`
+          : `Closed ${task.id} (${result.error || "no branch to merge"})`;
+        addToast(msg, "success");
+      })
+      .catch((err: any) => {
+        addToast(err.message, "error");
+      });
   }, [task.id, onMergeTask, onClose, addToast]);
 
   const transitions = VALID_TRANSITIONS[task.column] || [];
