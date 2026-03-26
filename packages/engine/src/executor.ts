@@ -8,6 +8,7 @@ import { createHaiAgent } from "./pi.js";
 import { reviewStep } from "./reviewer.js";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { AgentSemaphore } from "./concurrency.js";
+import type { WorktreePool } from "./worktree-pool.js";
 
 const STEP_STATUSES: StepStatus[] = ["pending", "in-progress", "done", "skipped"];
 
@@ -119,6 +120,8 @@ Call \`task_done()\` to signal completion.`;
 
 export interface TaskExecutorOptions {
   semaphore?: AgentSemaphore;
+  /** Worktree pool for recycling idle worktrees across tasks. */
+  pool?: WorktreePool;
   onStart?: (task: Task, worktreePath: string) => void;
   onComplete?: (task: Task) => void;
   onError?: (task: Task, error: Error) => void;
@@ -167,42 +170,16 @@ export class TaskExecutor {
   }
 
   /**
-   * Find a dependency task that has an existing worktree directory on disk.
-   * Returns the worktree path if found, null otherwise.
-   * Prefers dependencies whose worktree is still on disk so build caches
-   * (node_modules, target/, dist/) can be reused by dependent tasks.
+   * Execute a task in an isolated git worktree.
+   *
+   * Worktree acquisition flow:
+   * 1. If the worktree already exists on disk (resume after crash), reuse it.
+   * 2. If a {@link WorktreePool} is provided and `recycleWorktrees` is enabled,
+   *    attempt to acquire a warm worktree from the pool. Pooled worktrees skip
+   *    the `worktreeInitCommand` since their build caches are already warm.
+   * 3. Otherwise, create a fresh worktree via `git worktree add` and run the
+   *    `worktreeInitCommand` if configured.
    */
-  private resolveDependencyWorktree(task: Task, allTasks: Task[]): string | null {
-    if (task.dependencies.length === 0) return null;
-
-    for (const depId of task.dependencies) {
-      const dep = allTasks.find((t) => t.id === depId);
-      if (
-        dep &&
-        dep.worktree &&
-        (dep.column === "done" || dep.column === "in-review") &&
-        existsSync(dep.worktree)
-      ) {
-        return dep.worktree;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Reuse an existing worktree directory from a dependency task.
-   * Instead of creating a new worktree with `git worktree add`, this creates
-   * a new branch in the existing worktree via `git checkout -b`. The worktree
-   * directory (and its build caches) are preserved.
-   */
-  private reuseWorktree(branch: string, worktreePath: string): void {
-    execSync(`git checkout -b "${branch}"`, {
-      cwd: worktreePath,
-      stdio: "pipe",
-    });
-    console.log(`[executor] Reused worktree at ${worktreePath}, created branch ${branch}`);
-  }
-
   async execute(task: Task): Promise<void> {
     if (this.executing.has(task.id)) return;
     this.executing.add(task.id);
@@ -222,57 +199,55 @@ export class TaskExecutor {
         return;
       }
 
-      // Check if a dependency has a reusable worktree (warm cache)
-      const depWorktree = this.resolveDependencyWorktree(task, allTasks);
-
-      // Create or reuse worktree
+      // Create or reuse worktree — try pool first when recycling is enabled
       const branchName = `hai/${task.id.toLowerCase()}`;
-      let worktreePath: string;
-      let isResume: boolean;
-      let isReuse: boolean;
+      let worktreePath = task.worktree || join(this.rootDir, ".worktrees", task.id);
+      const isResume = existsSync(worktreePath);
+      let acquiredFromPool = false;
 
-      if (depWorktree && !task.worktree) {
-        // Reuse dependency worktree for warm build cache
-        worktreePath = depWorktree;
-        isResume = false;
-        isReuse = true;
-        const depTask = allTasks.find((t) => t.worktree === depWorktree);
-        const depId = depTask?.id ?? "unknown";
-        console.log(`[executor] Reusing worktree from ${depId} at ${depWorktree} (warm cache)`);
-        this.reuseWorktree(branchName, worktreePath);
+      if (!isResume) {
+        const settings = await this.store.getSettings();
+
+        // Try acquiring a warm worktree from the pool
+        if (this.options.pool && settings.recycleWorktrees) {
+          const pooled = this.options.pool.acquire();
+          if (pooled) {
+            this.options.pool.prepareForTask(pooled, branchName);
+            worktreePath = pooled;
+            acquiredFromPool = true;
+            console.log(`[executor] Acquired worktree from pool: ${pooled}`);
+            await this.store.updateTask(task.id, { worktree: worktreePath });
+            await this.store.logEntry(task.id, `Acquired worktree from pool: ${worktreePath}`);
+          }
+        }
+
+        // Fall through to fresh worktree creation if pool had nothing
+        if (!acquiredFromPool) {
+          this.createWorktree(branchName, worktreePath);
+          await this.store.updateTask(task.id, { worktree: worktreePath });
+          await this.store.logEntry(task.id, `Worktree created at ${worktreePath}`);
+
+          // Run worktree init command for fresh worktrees (skip for pooled — caches are warm)
+          if (settings.worktreeInitCommand) {
+            try {
+              execSync(settings.worktreeInitCommand, {
+                cwd: worktreePath,
+                stdio: "pipe",
+                timeout: 120_000,
+              });
+              await this.store.logEntry(task.id, "Worktree init command completed", settings.worktreeInitCommand);
+            } catch (err: any) {
+              const message = err.stderr?.toString() || err.message || "Unknown error";
+              await this.store.logEntry(task.id, `Worktree init command failed: ${message}`);
+            }
+          }
+        }
       } else {
-        worktreePath = task.worktree || join(this.rootDir, ".worktrees", task.id);
-        isResume = existsSync(worktreePath);
-        isReuse = false;
+        // Resume: worktree already exists, just ensure git worktree is registered
         this.createWorktree(branchName, worktreePath);
       }
 
       this.activeWorktrees.set(task.id, worktreePath);
-
-      if (!isResume && !isReuse) {
-        await this.store.updateTask(task.id, { worktree: worktreePath });
-        await this.store.logEntry(task.id, `Worktree created at ${worktreePath}`);
-
-        // Run worktree init command if configured
-        const settings = await this.store.getSettings();
-        if (settings.worktreeInitCommand) {
-          try {
-            execSync(settings.worktreeInitCommand, {
-              cwd: worktreePath,
-              stdio: "pipe",
-              timeout: 120_000,
-            });
-            await this.store.logEntry(task.id, "Worktree init command completed", settings.worktreeInitCommand);
-          } catch (err: any) {
-            const message = err.stderr?.toString() || err.message || "Unknown error";
-            await this.store.logEntry(task.id, `Worktree init command failed: ${message}`);
-          }
-        }
-      } else if (isReuse) {
-        // Update task's worktree field to point to the reused directory
-        await this.store.updateTask(task.id, { worktree: worktreePath });
-        await this.store.logEntry(task.id, `Reusing worktree at ${worktreePath} (warm cache)`);
-      }
 
       this.options.onStart?.(task, worktreePath);
 

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskStore, Task, MergeResult } from "@hai/core";
 import { createHaiAgent } from "./pi.js";
+import type { WorktreePool } from "./worktree-pool.js";
 
 const MERGE_SYSTEM_PROMPT = `You are a merge agent for "hai", an AI-orchestrated task board.
 
@@ -70,11 +71,20 @@ export interface MergerOptions {
   onAgentText?: (delta: string) => void;
   /** Called with agent tool usage */
   onAgentTool?: (toolName: string) => void;
+  /** Worktree pool — when provided and `recycleWorktrees` is enabled,
+   *  worktrees are released to the pool instead of being removed. */
+  pool?: WorktreePool;
 }
 
 /**
  * AI-powered merge: resolves conflicts with a pi agent and
  * writes a commit message that summarizes the branch's work.
+ *
+ * When `options.pool` is provided and `recycleWorktrees` is enabled in
+ * settings, the worktree is detached from its branch and released to the
+ * idle pool instead of being removed. The task's branch is always deleted
+ * regardless of pooling. On next task execution, the pooled worktree will
+ * be acquired and prepared with a fresh branch via {@link WorktreePool.prepareForTask}.
  */
 export async function aiMergeTask(
   store: TaskStore,
@@ -211,23 +221,17 @@ export async function aiMergeTask(
     session.dispose();
   }
 
-  // 7. Delete branch (always per-task, regardless of worktree sharing)
-  try {
-    execSync(`git branch -d "${branch}"`, { cwd: rootDir, stdio: "pipe" });
-    result.branchDeleted = true;
-  } catch {
-    try {
-      execSync(`git branch -D "${branch}"`, { cwd: rootDir, stdio: "pipe" });
-      result.branchDeleted = true;
-    } catch { /* non-fatal */ }
-  }
-
-  // 8. Clean up worktree — only if no other non-done task still references it
+  // 7. Clean up worktree — release to pool if recycling is enabled
   if (existsSync(worktreePath)) {
-    const otherUser = await findWorktreeUser(store, worktreePath, taskId);
-    if (otherUser) {
-      console.log(`[merger] Worktree retained — still needed by ${otherUser}`);
+    const settings = await store.getSettings();
+    if (options.pool && settings.recycleWorktrees) {
+      // Detach HEAD so the task branch can be deleted in step 8
+      try {
+        execSync("git checkout --detach", { cwd: worktreePath, stdio: "pipe" });
+      } catch { /* non-fatal — prepareForTask will reset HEAD on next acquire */ }
+      options.pool.release(worktreePath);
       result.worktreeRemoved = false;
+      console.log(`[merger] Worktree returned to pool: ${worktreePath}`);
     } else {
       try {
         execSync(`git worktree remove "${worktreePath}" --force`, {
@@ -237,6 +241,17 @@ export async function aiMergeTask(
         result.worktreeRemoved = true;
       } catch { /* non-fatal */ }
     }
+  }
+
+  // 8. Delete branch
+  try {
+    execSync(`git branch -d "${branch}"`, { cwd: rootDir, stdio: "pipe" });
+    result.branchDeleted = true;
+  } catch {
+    try {
+      execSync(`git branch -D "${branch}"`, { cwd: rootDir, stdio: "pipe" });
+      result.branchDeleted = true;
+    } catch { /* non-fatal */ }
   }
 
   // 9. Move task to done

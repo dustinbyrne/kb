@@ -66,6 +66,10 @@ export interface Settings {
   testCommand?: string;
   /** Custom build command for the project (e.g. "pnpm build") */
   buildCommand?: string;
+  /** When true, completed task worktrees are returned to an idle pool instead
+   *  of being deleted. New tasks acquire a warm worktree from the pool,
+   *  preserving build caches (node_modules, target/, dist/). Default: false. */
+  recycleWorktrees?: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -75,6 +79,7 @@ export const DEFAULT_SETTINGS: Settings = {
   groupOverlappingFiles: false,
   autoMerge: false,
   worktreeInitCommand: undefined,
+  recycleWorktrees: false,
 };
 
 export interface BoardConfig {

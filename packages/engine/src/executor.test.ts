@@ -21,6 +21,8 @@ vi.mock("node:fs", () => ({
 }));
 
 import { TaskExecutor } from "./executor.js";
+import { aiMergeTask } from "./merger.js";
+import { WorktreePool } from "./worktree-pool.js";
 import { createHaiAgent } from "./pi.js";
 import { execSync } from "node:child_process";
 import { findWorktreeUser } from "./merger.js";
@@ -316,27 +318,24 @@ describe("TaskExecutor worktreeInitCommand", () => {
   });
 });
 
-const mockedFindWorktreeUser = vi.mocked(findWorktreeUser);
-
-describe("TaskExecutor worktree reuse", () => {
-  const makeTask = (overrides: Partial<Task> = {}): Task => ({
-    id: "HAI-020",
-    title: "Dependent task",
+describe("TaskExecutor worktree pool integration", () => {
+  const makeTask = (id = "HAI-020") => ({
+    id,
+    title: "Test",
     description: "Test",
-    column: "in-progress",
+    column: "in-progress" as const,
     dependencies: [],
     steps: [],
     currentStep: 0,
     log: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...overrides,
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: worktree does NOT exist (new worktree)
     mockedExistsSync.mockReturnValue(false);
-    mockedFindWorktreeUser.mockResolvedValue(null);
     mockedCreateHaiAgent.mockResolvedValue({
       session: {
         prompt: vi.fn().mockResolvedValue(undefined),
@@ -345,218 +344,248 @@ describe("TaskExecutor worktree reuse", () => {
     } as any);
   });
 
-  it("reuses dependency worktree when dep has existing worktree on disk", async () => {
+  it("acquires from pool when recycleWorktrees is true and pool has idle worktrees", async () => {
+    const pool = new WorktreePool();
+    pool.release("/tmp/test/.worktrees/idle-wt");
+    // Pool path exists on disk, task worktree path does not (not a resume)
+    mockedExistsSync.mockImplementation(
+      (p) => p === "/tmp/test/.worktrees/idle-wt",
+    );
+
     const store = createMockStore();
-    const depWorktreePath = "/tmp/test/.worktrees/HAI-019";
-
-    // Dep task is in-review with an existing worktree
-    store.listTasks.mockResolvedValue([
-      makeTask({
-        id: "HAI-019",
-        column: "in-review",
-        worktree: depWorktreePath,
-        dependencies: [],
-      }),
-      makeTask({
-        id: "HAI-020",
-        column: "in-progress",
-        dependencies: ["HAI-019"],
-      }),
-    ]);
-
-    // existsSync: dep worktree exists on disk
-    mockedExistsSync.mockImplementation((p: any) => {
-      return p === depWorktreePath;
-    });
-
-    const executor = new TaskExecutor(store, "/tmp/test");
-    await executor.execute(makeTask({ id: "HAI-020", dependencies: ["HAI-019"] }));
-
-    // Should call `git checkout -b` (reuse), NOT `git worktree add`
-    const checkoutCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git checkout -b"),
-    );
-    expect(checkoutCall).toBeDefined();
-    expect(checkoutCall![0]).toContain("hai/hai-020");
-
-    const worktreeAddCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git worktree add"),
-    );
-    expect(worktreeAddCall).toBeUndefined();
-
-    // Task's worktree should be set to the reused path
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-020", { worktree: depWorktreePath });
-  });
-
-  it("creates fresh worktree when dependency worktree does NOT exist on disk", async () => {
-    const store = createMockStore();
-
-    // Dep is done but worktree was removed (cleared on done)
-    store.listTasks.mockResolvedValue([
-      makeTask({ id: "HAI-019", column: "done", dependencies: [] }),
-      makeTask({ id: "HAI-020", column: "in-progress", dependencies: ["HAI-019"] }),
-    ]);
-
-    mockedExistsSync.mockReturnValue(false);
-
-    const executor = new TaskExecutor(store, "/tmp/test");
-    await executor.execute(makeTask({ id: "HAI-020", dependencies: ["HAI-019"] }));
-
-    // Should call `git worktree add`, NOT `git checkout -b`
-    const worktreeAddCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git worktree add"),
-    );
-    expect(worktreeAddCall).toBeDefined();
-
-    const checkoutCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git checkout -b"),
-    );
-    expect(checkoutCall).toBeUndefined();
-  });
-
-  it("creates fresh worktree when task has NO dependencies", async () => {
-    const store = createMockStore();
-    store.listTasks.mockResolvedValue([]);
-    mockedExistsSync.mockReturnValue(false);
-
-    const executor = new TaskExecutor(store, "/tmp/test");
-    await executor.execute(makeTask({ id: "HAI-020", dependencies: [] }));
-
-    const worktreeAddCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git worktree add"),
-    );
-    expect(worktreeAddCall).toBeDefined();
-  });
-
-  it("does NOT run worktreeInitCommand when reusing a worktree", async () => {
-    const store = createMockStore();
-    const depWorktreePath = "/tmp/test/.worktrees/HAI-019";
-
-    store.listTasks.mockResolvedValue([
-      makeTask({
-        id: "HAI-019",
-        column: "in-review",
-        worktree: depWorktreePath,
-        dependencies: [],
-      }),
-    ]);
-
     store.getSettings.mockResolvedValue({
       maxConcurrent: 2,
       maxWorktrees: 4,
       pollIntervalMs: 15000,
       groupOverlappingFiles: false,
       autoMerge: false,
+      recycleWorktrees: true,
+    });
+
+    const executor = new TaskExecutor(store, "/tmp/test", { pool });
+    await executor.execute(makeTask());
+
+    // Should NOT call git worktree add (no fresh worktree)
+    const worktreeAddCalls = mockedExecSync.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("worktree add"),
+    );
+    expect(worktreeAddCalls).toHaveLength(0);
+
+    // Should log pool acquisition
+    expect(store.logEntry).toHaveBeenCalledWith(
+      "HAI-020",
+      expect.stringContaining("Acquired worktree from pool"),
+    );
+
+    // Pool should be empty after acquire
+    expect(pool.size).toBe(0);
+  });
+
+  it("creates fresh worktree when pool is empty", async () => {
+    const pool = new WorktreePool();
+    // Pool is empty
+
+    const store = createMockStore();
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      recycleWorktrees: true,
+    });
+
+    const executor = new TaskExecutor(store, "/tmp/test", { pool });
+    await executor.execute(makeTask());
+
+    // Should call git worktree add (fresh worktree)
+    const worktreeAddCalls = mockedExecSync.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("worktree add"),
+    );
+    expect(worktreeAddCalls.length).toBeGreaterThan(0);
+
+    // Should log worktree creation, NOT pool acquisition
+    expect(store.logEntry).toHaveBeenCalledWith(
+      "HAI-020",
+      expect.stringContaining("Worktree created at"),
+    );
+  });
+
+  it("skips worktree init command for pooled worktrees", async () => {
+    const pool = new WorktreePool();
+    pool.release("/tmp/test/.worktrees/warm-wt");
+    // Pool path exists on disk, task worktree path does not
+    mockedExistsSync.mockImplementation(
+      (p) => p === "/tmp/test/.worktrees/warm-wt",
+    );
+
+    const store = createMockStore();
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      recycleWorktrees: true,
       worktreeInitCommand: "pnpm install",
     });
 
-    mockedExistsSync.mockImplementation((p: any) => p === depWorktreePath);
+    const executor = new TaskExecutor(store, "/tmp/test", { pool });
+    await executor.execute(makeTask());
 
-    const executor = new TaskExecutor(store, "/tmp/test");
-    await executor.execute(makeTask({ id: "HAI-020", dependencies: ["HAI-019"] }));
-
-    // Init command should NOT have been run
-    const initCall = mockedExecSync.mock.calls.find(
-      (call) => call[0] === "pnpm install",
+    // "pnpm install" should NOT have been called (pooled worktree has warm cache)
+    const initCalls = mockedExecSync.mock.calls.filter(
+      (c) => c[0] === "pnpm install",
     );
-    expect(initCall).toBeUndefined();
+    expect(initCalls).toHaveLength(0);
   });
 
-  it("resolveDependencyWorktree picks first dependency with existing worktree", async () => {
+  it("does not use pool when recycleWorktrees is false", async () => {
+    const pool = new WorktreePool();
+    pool.release("/tmp/test/.worktrees/idle-wt");
+
     const store = createMockStore();
-    const depAPath = "/tmp/test/.worktrees/HAI-018";
-    const depBPath = "/tmp/test/.worktrees/HAI-019";
+    // recycleWorktrees defaults to false
 
-    // Two deps: A has no worktree on disk, B does
-    store.listTasks.mockResolvedValue([
-      makeTask({ id: "HAI-018", column: "in-review" as Column, worktree: depAPath, dependencies: [] }),
-      makeTask({ id: "HAI-019", column: "in-review" as Column, worktree: depBPath, dependencies: [] }),
-    ]);
+    const executor = new TaskExecutor(store, "/tmp/test", { pool });
+    await executor.execute(makeTask());
 
-    mockedExistsSync.mockImplementation((p: any) => p === depBPath);
-
-    const executor = new TaskExecutor(store, "/tmp/test");
-    await executor.execute(makeTask({ id: "HAI-020", dependencies: ["HAI-018", "HAI-019"] }));
-
-    // Should reuse HAI-019's worktree (the one that exists)
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-020", { worktree: depBPath });
-
-    const checkoutCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git checkout -b"),
+    // Should create a fresh worktree, NOT acquire from pool
+    const worktreeAddCalls = mockedExecSync.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("worktree add"),
     );
-    expect(checkoutCall).toBeDefined();
-    expect(checkoutCall![1]).toMatchObject({ cwd: depBPath });
+    expect(worktreeAddCalls.length).toBeGreaterThan(0);
+
+    // Pool should still have the entry (not acquired)
+    expect(pool.size).toBe(1);
   });
 });
 
-describe("TaskExecutor cleanup — chain-aware", () => {
+describe("WorktreePool capacity", () => {
+  it("pool does not enforce maxWorktrees — scheduler is the capacity gatekeeper", () => {
+    const pool = new WorktreePool();
+    pool.release("/tmp/a");
+    pool.release("/tmp/b");
+    pool.release("/tmp/c");
+    pool.release("/tmp/d");
+    pool.release("/tmp/e");
+    expect(pool.size).toBe(5);
+  });
+});
+
+describe("Merger worktree pool integration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedExistsSync.mockReturnValue(false);
-    mockedFindWorktreeUser.mockResolvedValue(null);
+  });
+
+  function createMergerMockStore(overrides: Record<string, any> = {}) {
+    const listeners = new Map<string, Function[]>();
+    return {
+      on: vi.fn((event: string, fn: Function) => {
+        const existing = listeners.get(event) || [];
+        existing.push(fn);
+        listeners.set(event, existing);
+      }),
+      emit: vi.fn(),
+      getTask: vi.fn().mockResolvedValue({
+        id: "HAI-050",
+        title: "Test merge",
+        description: "Test",
+        column: "in-review",
+        dependencies: [],
+        worktree: "/tmp/test/.worktrees/HAI-050",
+        steps: [],
+        currentStep: 0,
+        log: [],
+        prompt: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+      updateTask: vi.fn().mockResolvedValue({}),
+      moveTask: vi.fn().mockResolvedValue({
+        id: "HAI-050",
+        column: "done",
+        dependencies: [],
+        steps: [],
+        log: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+      logEntry: vi.fn(),
+      getSettings: vi.fn().mockResolvedValue({
+        maxConcurrent: 2,
+        maxWorktrees: 4,
+        pollIntervalMs: 15000,
+        groupOverlappingFiles: false,
+        autoMerge: false,
+        recycleWorktrees: false,
+        ...overrides,
+      }),
+    } as any;
+  }
+
+  function mockMergerExecSync(cmd: any, opts?: any): any {
+    const s = typeof cmd === "string" ? cmd : "";
+    const isString = opts?.encoding === "utf-8";
+    if (s.includes("rev-parse --verify")) return isString ? "abc123" : Buffer.from("abc123");
+    if (s.includes("git log")) return isString ? "- test commit" : Buffer.from("- test commit");
+    if (s.includes("git diff") && s.includes("--stat")) return isString ? "file.ts | 5 +++++" : Buffer.from("file.ts | 5 +++++");
+    if (s.includes("diff --cached --quiet")) return isString ? "0" : Buffer.from("0");
+    if (s.includes("diff --name-only --diff-filter=U")) return isString ? "" : Buffer.from("");
+    return isString ? "" : Buffer.from("");
+  }
+
+  it("releases worktree to pool instead of removing when recycleWorktrees is true", async () => {
+    const pool = new WorktreePool();
+    const store = createMergerMockStore({ recycleWorktrees: true });
+    mockedExistsSync.mockReturnValue(true);
+
+    mockedExecSync.mockImplementation(mockMergerExecSync);
+
     mockedCreateHaiAgent.mockResolvedValue({
       session: {
         prompt: vi.fn().mockResolvedValue(undefined),
         dispose: vi.fn(),
       },
     } as any);
+
+    const result = await aiMergeTask(store, "/tmp/test", "HAI-050", { pool });
+
+    // Worktree should be in the pool, NOT removed
+    expect(pool.has("/tmp/test/.worktrees/HAI-050")).toBe(true);
+    expect(result.worktreeRemoved).toBe(false);
+
+    // git worktree remove should NOT have been called
+    const removeCalls = mockedExecSync.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("worktree remove"),
+    );
+    expect(removeCalls).toHaveLength(0);
   });
 
-  it("does NOT remove worktree if another task still uses it", async () => {
-    const store = createMockStore();
-    mockedFindWorktreeUser.mockResolvedValue("HAI-021");
+  it("removes worktree normally when recycleWorktrees is false", async () => {
+    const pool = new WorktreePool();
+    const store = createMergerMockStore({ recycleWorktrees: false });
+    mockedExistsSync.mockReturnValue(true);
 
-    const executor = new TaskExecutor(store, "/tmp/test");
+    mockedExecSync.mockImplementation(mockMergerExecSync);
 
-    // Execute a task to register a worktree
-    mockedExistsSync.mockReturnValue(false);
-    await executor.execute({
-      id: "HAI-020",
-      title: "Test",
-      description: "Test",
-      column: "in-progress" as const,
-      dependencies: [],
-      steps: [],
-      currentStep: 0,
-      log: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
 
-    // Now cleanup — should skip removal because findWorktreeUser returns "HAI-021"
-    await executor.cleanup("HAI-020");
+    const result = await aiMergeTask(store, "/tmp/test", "HAI-050", { pool });
 
-    const removeCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git worktree remove"),
+    // Worktree should NOT be in the pool
+    expect(pool.size).toBe(0);
+    expect(result.worktreeRemoved).toBe(true);
+
+    // git worktree remove should have been called
+    const removeCalls = mockedExecSync.mock.calls.filter(
+      (c) => typeof c[0] === "string" && (c[0] as string).includes("worktree remove"),
     );
-    expect(removeCall).toBeUndefined();
-  });
-
-  it("removes worktree when no other task uses it", async () => {
-    const store = createMockStore();
-    mockedFindWorktreeUser.mockResolvedValue(null);
-
-    const executor = new TaskExecutor(store, "/tmp/test");
-
-    mockedExistsSync.mockReturnValue(false);
-    await executor.execute({
-      id: "HAI-020",
-      title: "Test",
-      description: "Test",
-      column: "in-progress" as const,
-      dependencies: [],
-      steps: [],
-      currentStep: 0,
-      log: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
-    await executor.cleanup("HAI-020");
-
-    const removeCall = mockedExecSync.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("git worktree remove"),
-    );
-    expect(removeCall).toBeDefined();
+    expect(removeCalls.length).toBeGreaterThan(0);
   });
 });
