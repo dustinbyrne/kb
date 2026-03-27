@@ -1,0 +1,142 @@
+# Test Release workflow
+#
+# Manual workflow for testing binary builds without creating a real release.
+# Triggered via workflow_dispatch from the GitHub Actions UI.
+
+name: Test Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # ── Build and test platform-specific binaries ─────────────────────────
+  build-binaries:
+    name: Build & Test ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            binary: hai-linux-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            binary: hai-darwin-arm64
+          - os: macos-13
+            target: bun-darwin-x64
+            binary: hai-darwin-x64
+          - os: windows-latest
+            target: bun-windows-x64
+            binary: hai-windows-x64.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm build
+
+      - name: Build binary
+        run: pnpm --filter hai build:exe -- --target ${{ matrix.target }}
+
+      - name: Verify binary exists
+        shell: bash
+        run: test -f packages/cli/dist/${{ matrix.binary }}
+
+      - name: Smoke test (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x packages/cli/dist/${{ matrix.binary }}
+          packages/cli/dist/${{ matrix.binary }} --help
+
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & packages/cli/dist/${{ matrix.binary }} --help
+
+      - name: Sign macOS binary
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: bash scripts/sign-macos.sh packages/cli/dist/${{ matrix.binary }}
+
+      - name: Sign Windows binary
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE_BASE64 != ''
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: pwsh scripts/sign-windows.ps1 packages/cli/dist/${{ matrix.binary }}
+
+      - name: Generate checksum (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd packages/cli/dist
+          sha256sum ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
+
+      - name: Generate checksum (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd packages/cli/dist
+          shasum -a 256 ${{ matrix.binary }} > ${{ matrix.binary }}.sha256
+
+      - name: Generate checksum (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd packages/cli/dist
+          $hash = (Get-FileHash ${{ matrix.binary }} -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ matrix.binary }}" | Out-File -Encoding ascii ${{ matrix.binary }}.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: |
+            packages/cli/dist/${{ matrix.binary }}
+            packages/cli/dist/${{ matrix.binary }}.sha256
+
+  # ── Collect all artifacts ─────────────────────────────────────────────
+  collect:
+    name: Collect Artifacts
+    needs: build-binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Combine artifacts
+        run: |
+          mkdir combined
+          find artifacts -type f \( -name "hai-*" -o -name "*.sha256" \) -exec cp {} combined/ \;
+          ls -la combined/
+
+      - name: Upload combined archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: all-binaries
+          path: combined/*

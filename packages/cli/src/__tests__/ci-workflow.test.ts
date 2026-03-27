@@ -42,12 +42,16 @@ describe("CI workflow (.github/workflows/ci.yml)", () => {
     expect(content).toContain("pnpm build");
   });
 
-  it("does not include binary build step", () => {
-    expect(content).not.toContain("pnpm build:exe");
+  it("includes binary build step", () => {
+    expect(content).toContain("build:exe");
   });
 
-  it("does not include Bun setup", () => {
-    expect(content).not.toContain("oven-sh/setup-bun");
+  it("includes Bun setup", () => {
+    expect(content).toContain("oven-sh/setup-bun");
+  });
+
+  it("verifies binary exists after build", () => {
+    expect(content).toContain("test -f packages/cli/dist/hai");
   });
 
   it("includes pnpm test step", () => {
@@ -114,15 +118,153 @@ describe("Version & Release workflow (.github/workflows/version.yml)", () => {
   });
 });
 
-describe("Deleted binary workflows", () => {
-  it("release.yml no longer exists", () => {
-    const path = join(workspaceRoot, ".github", "workflows", "release.yml");
-    expect(existsSync(path)).toBe(false);
+describe("Binary release workflow (.github/workflows/release.yml)", () => {
+  let workflow: any;
+  let content: string;
+
+  beforeAll(() => {
+    const result = loadWorkflow("release.yml");
+    workflow = result.parsed;
+    content = result.content;
   });
 
-  it("test-release.yml no longer exists", () => {
-    const path = join(workspaceRoot, ".github", "workflows", "test-release.yml");
-    expect(existsSync(path)).toBe(false);
+  it("is valid YAML", () => {
+    expect(workflow).toBeDefined();
+    expect(typeof workflow).toBe("object");
+  });
+
+  it("triggers on version tags", () => {
+    expect(workflow.on.push.tags).toBeDefined();
+    expect(workflow.on.push.tags.some((t: string) => t.includes("v"))).toBe(true);
+  });
+
+  it("has build-binaries job with 4-target matrix", () => {
+    const matrix = workflow.jobs["build-binaries"].strategy.matrix.include;
+    expect(matrix).toHaveLength(4);
+    const targets = matrix.map((m: any) => m.target);
+    expect(targets).toContain("bun-linux-x64");
+    expect(targets).toContain("bun-darwin-arm64");
+    expect(targets).toContain("bun-darwin-x64");
+    expect(targets).toContain("bun-windows-x64");
+  });
+
+  it("has correct OS runners for each target", () => {
+    const matrix = workflow.jobs["build-binaries"].strategy.matrix.include;
+    const osMap: Record<string, string> = {};
+    matrix.forEach((m: any) => { osMap[m.target] = m.os; });
+    expect(osMap["bun-linux-x64"]).toBe("ubuntu-latest");
+    expect(osMap["bun-darwin-arm64"]).toBe("macos-latest");
+    expect(osMap["bun-darwin-x64"]).toBe("macos-13");
+    expect(osMap["bun-windows-x64"]).toBe("windows-latest");
+  });
+
+  it("uses softprops/action-gh-release", () => {
+    expect(content).toContain("softprops/action-gh-release");
+  });
+
+  it("references signing scripts", () => {
+    expect(content).toContain("scripts/sign-macos.sh");
+    expect(content).toContain("scripts/sign-windows.ps1");
+  });
+
+  it("generates checksums on all platforms", () => {
+    expect(content).toContain("sha256sum");
+    expect(content).toContain("shasum -a 256");
+    expect(content).toContain("Get-FileHash");
+  });
+
+  it("has contents: write permission", () => {
+    expect(workflow.permissions.contents).toBe("write");
+  });
+
+  it("has github-release job that depends on build-binaries", () => {
+    expect(workflow.jobs["github-release"].needs).toContain("build-binaries");
+  });
+});
+
+describe("Test-release workflow (.github/workflows/test-release.yml)", () => {
+  let workflow: any;
+  let content: string;
+
+  beforeAll(() => {
+    const result = loadWorkflow("test-release.yml");
+    workflow = result.parsed;
+    content = result.content;
+  });
+
+  it("is valid YAML", () => {
+    expect(workflow).toBeDefined();
+    expect(typeof workflow).toBe("object");
+  });
+
+  it("has workflow_dispatch trigger", () => {
+    expect(workflow.on).toHaveProperty("workflow_dispatch");
+  });
+
+  it("has 4-target build matrix", () => {
+    const matrix = workflow.jobs["build-binaries"].strategy.matrix.include;
+    expect(matrix).toHaveLength(4);
+    const targets = matrix.map((m: any) => m.target);
+    expect(targets).toContain("bun-linux-x64");
+    expect(targets).toContain("bun-darwin-arm64");
+    expect(targets).toContain("bun-darwin-x64");
+    expect(targets).toContain("bun-windows-x64");
+  });
+
+  it("includes smoke tests with --help", () => {
+    expect(content).toContain("--help");
+  });
+
+  it("has signing steps with secret-availability guards", () => {
+    expect(content).toContain("APPLE_CERTIFICATE_BASE64 != ''");
+    expect(content).toContain("WINDOWS_CERTIFICATE_BASE64 != ''");
+  });
+
+  it("uploads artifacts", () => {
+    expect(content).toContain("actions/upload-artifact");
+  });
+
+  it("has a collect job that combines artifacts", () => {
+    expect(workflow.jobs.collect).toBeDefined();
+    expect(workflow.jobs.collect.needs).toContain("build-binaries");
+    expect(content).toContain("all-binaries");
+  });
+});
+
+describe("Code signing — Release workflow secrets", () => {
+  let content: string;
+
+  beforeAll(() => {
+    const result = loadWorkflow("release.yml");
+    content = result.content;
+  });
+
+  it("references macOS signing secrets", () => {
+    expect(content).toContain("secrets.APPLE_CERTIFICATE_BASE64");
+    expect(content).toContain("secrets.APPLE_CERTIFICATE_PASSWORD");
+    expect(content).toContain("secrets.APPLE_IDENTITY");
+    expect(content).toContain("secrets.APPLE_ID");
+    expect(content).toContain("secrets.APPLE_TEAM_ID");
+    expect(content).toContain("secrets.APPLE_APP_PASSWORD");
+  });
+
+  it("references Windows signing secrets", () => {
+    expect(content).toContain("secrets.WINDOWS_CERTIFICATE_BASE64");
+    expect(content).toContain("secrets.WINDOWS_CERTIFICATE_PASSWORD");
+  });
+
+  it("generates checksums after signing", () => {
+    const signMacIdx = content.indexOf("Sign macOS binary");
+    const signWinIdx = content.indexOf("Sign Windows binary");
+    const checksumLinuxIdx = content.indexOf("Generate checksum (Linux)");
+    const checksumMacIdx = content.indexOf("Generate checksum (macOS)");
+    const checksumWinIdx = content.indexOf("Generate checksum (Windows)");
+
+    // All checksum steps come after all signing steps
+    expect(checksumLinuxIdx).toBeGreaterThan(signMacIdx);
+    expect(checksumLinuxIdx).toBeGreaterThan(signWinIdx);
+    expect(checksumMacIdx).toBeGreaterThan(signMacIdx);
+    expect(checksumWinIdx).toBeGreaterThan(signWinIdx);
   });
 });
 
