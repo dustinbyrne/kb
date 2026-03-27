@@ -11,9 +11,10 @@ interface AgentLogViewerProps {
  * Auto-scrolls to the bottom as new entries arrive, but pauses
  * auto-scroll when the user scrolls up (scroll-lock).
  */
+const SCROLL_THRESHOLD = 40;
+
 export function AgentLogViewer({ entries, loading }: AgentLogViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastScrollTopRef = useRef(0);
   const [autoScroll, setAutoScroll] = useState(true);
 
   // Auto-scroll to bottom when new entries arrive (if scroll-lock is not active)
@@ -26,15 +27,9 @@ export function AgentLogViewer({ entries, loading }: AgentLogViewerProps) {
   const handleScroll = () => {
     const el = containerRef.current;
     if (!el) return;
-    const currentScrollTop = el.scrollTop;
-    const lastScrollTop = lastScrollTopRef.current;
-    // Detect scroll direction: up disables auto-scroll, down re-enables it
-    if (currentScrollTop < lastScrollTop) {
-      setAutoScroll(false);
-    } else if (currentScrollTop > lastScrollTop) {
-      setAutoScroll(true);
-    }
-    lastScrollTopRef.current = currentScrollTop;
+    // Enable auto-scroll only when user is near the bottom of the container
+    const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_THRESHOLD;
+    setAutoScroll(nearBottom);
   };
 
   if (loading && entries.length === 0) {

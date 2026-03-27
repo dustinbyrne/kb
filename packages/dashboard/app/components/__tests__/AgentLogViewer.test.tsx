@@ -105,44 +105,43 @@ describe("AgentLogViewer", () => {
     expect(viewer.scrollTop).toBe(viewer.scrollHeight);
   });
 
-  it("disables auto-scroll when user scrolls up", () => {
+  it("disables auto-scroll when user scrolls away from bottom", () => {
     const entries = [makeEntry({ text: "line 1" })];
     const { container, rerender } = render(
       <AgentLogViewer entries={entries} loading={false} />,
     );
     const viewer = container.querySelector("[data-testid='agent-log-viewer']") as HTMLElement;
 
-    // Simulate an initial scroll position then scroll up
+    // Simulate a container with content taller than viewport
+    Object.defineProperty(viewer, "scrollHeight", { value: 1000, writable: true, configurable: true });
+    Object.defineProperty(viewer, "clientHeight", { value: 500, writable: true, configurable: true });
+    // User is scrolled far from bottom
     Object.defineProperty(viewer, "scrollTop", { value: 100, writable: true, configurable: true });
-    fireEvent.scroll(viewer);
-
-    // Now scroll up (scrollTop decreases)
-    Object.defineProperty(viewer, "scrollTop", { value: 50, writable: true, configurable: true });
     fireEvent.scroll(viewer);
 
     // Re-render with new entries — auto-scroll should be disabled, so scrollTop stays
     const newEntries = [...entries, makeEntry({ text: "line 2" })];
     rerender(<AgentLogViewer entries={newEntries} loading={false} />);
 
-    // scrollTop should remain at 50, not jump to scrollHeight
-    expect(viewer.scrollTop).toBe(50);
+    // scrollTop should remain at 100, not jump to scrollHeight
+    expect(viewer.scrollTop).toBe(100);
   });
 
-  it("re-enables auto-scroll when user scrolls down", () => {
+  it("re-enables auto-scroll when user scrolls to near the bottom", () => {
     const entries = [makeEntry({ text: "line 1" })];
     const { container, rerender } = render(
       <AgentLogViewer entries={entries} loading={false} />,
     );
     const viewer = container.querySelector("[data-testid='agent-log-viewer']") as HTMLElement;
 
-    // Scroll up first to disable auto-scroll
+    // First scroll away from bottom to disable auto-scroll
+    Object.defineProperty(viewer, "scrollHeight", { value: 1000, writable: true, configurable: true });
+    Object.defineProperty(viewer, "clientHeight", { value: 500, writable: true, configurable: true });
     Object.defineProperty(viewer, "scrollTop", { value: 100, writable: true, configurable: true });
     fireEvent.scroll(viewer);
-    Object.defineProperty(viewer, "scrollTop", { value: 50, writable: true, configurable: true });
-    fireEvent.scroll(viewer);
 
-    // Now scroll down (any amount) to re-enable
-    Object.defineProperty(viewer, "scrollTop", { value: 70, writable: true, configurable: true });
+    // Now scroll to near the bottom (within threshold of 40px)
+    Object.defineProperty(viewer, "scrollTop", { value: 480, writable: true, configurable: true });
     fireEvent.scroll(viewer);
 
     // Re-render with new entries — auto-scroll should be re-enabled
@@ -150,6 +149,50 @@ describe("AgentLogViewer", () => {
     rerender(<AgentLogViewer entries={newEntries} loading={false} />);
 
     // scrollTop should jump to scrollHeight since auto-scroll is re-enabled
+    expect(viewer.scrollTop).toBe(viewer.scrollHeight);
+  });
+
+  it("does NOT re-enable auto-scroll when user scrolls down but not near bottom", () => {
+    const entries = [makeEntry({ text: "line 1" })];
+    const { container, rerender } = render(
+      <AgentLogViewer entries={entries} loading={false} />,
+    );
+    const viewer = container.querySelector("[data-testid='agent-log-viewer']") as HTMLElement;
+
+    // Container with scrollable content
+    Object.defineProperty(viewer, "scrollHeight", { value: 1000, writable: true, configurable: true });
+    Object.defineProperty(viewer, "clientHeight", { value: 500, writable: true, configurable: true });
+
+    // User scrolls partway down — not near bottom
+    Object.defineProperty(viewer, "scrollTop", { value: 200, writable: true, configurable: true });
+    fireEvent.scroll(viewer);
+
+    // Re-render with new entries — auto-scroll should stay disabled
+    const newEntries = [...entries, makeEntry({ text: "line 2" })];
+    rerender(<AgentLogViewer entries={newEntries} loading={false} />);
+
+    // scrollTop should remain where user left it
+    expect(viewer.scrollTop).toBe(200);
+  });
+
+  it("enables auto-scroll when user is exactly at the bottom", () => {
+    const entries = [makeEntry({ text: "line 1" })];
+    const { container, rerender } = render(
+      <AgentLogViewer entries={entries} loading={false} />,
+    );
+    const viewer = container.querySelector("[data-testid='agent-log-viewer']") as HTMLElement;
+
+    // Container at exact bottom: scrollTop + clientHeight === scrollHeight
+    Object.defineProperty(viewer, "scrollHeight", { value: 1000, writable: true, configurable: true });
+    Object.defineProperty(viewer, "clientHeight", { value: 500, writable: true, configurable: true });
+    Object.defineProperty(viewer, "scrollTop", { value: 500, writable: true, configurable: true });
+    fireEvent.scroll(viewer);
+
+    // Re-render with new entries — auto-scroll should be enabled
+    const newEntries = [...entries, makeEntry({ text: "line 2" })];
+    rerender(<AgentLogViewer entries={newEntries} loading={false} />);
+
+    // scrollTop should jump to scrollHeight
     expect(viewer.scrollTop).toBe(viewer.scrollHeight);
   });
 });
