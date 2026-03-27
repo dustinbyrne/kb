@@ -16,7 +16,7 @@ export interface TaskStoreEvents {
 }
 
 export class TaskStore extends EventEmitter<TaskStoreEvents> {
-  private haiDir: string;
+  private kbDir: string;
   private tasksDir: string;
   private configPath: string;
 
@@ -37,9 +37,9 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   constructor(private rootDir: string) {
     super();
-    this.haiDir = join(rootDir, ".hai");
-    this.tasksDir = join(this.haiDir, "tasks");
-    this.configPath = join(this.haiDir, "config.json");
+    this.kbDir = join(rootDir, ".kb");
+    this.tasksDir = join(this.kbDir, "tasks");
+    this.configPath = join(this.kbDir, "config.json");
   }
 
   async init(): Promise<void> {
@@ -160,7 +160,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
   private async allocateId(): Promise<string> {
     return this.withConfigLock(async () => {
       const config = await this.readConfig();
-      const prefix = config.settings?.taskPrefix || "HAI";
+      const prefix = config.settings?.taskPrefix || "KB";
       const id = `${prefix}-${String(config.nextId).padStart(3, "0")}`;
       config.nextId++;
       await this.writeConfig(config);
@@ -509,7 +509,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
         );
       }
 
-      const branch = `hai/${id.toLowerCase()}`;
+      const branch = `kb/${id.toLowerCase()}`;
       const worktreePath = task.worktree;
       const result: MergeResult = {
         task,
@@ -556,7 +556,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
           `Merge conflict merging '${branch}'. Resolve manually:\n` +
             `  cd ${this.rootDir}\n` +
             `  git merge --squash ${branch}\n` +
-            `  # resolve conflicts, then: hai task move ${id} done`,
+            `  # resolve conflicts, then: kb task move ${id} done`,
         );
       }
 
@@ -877,10 +877,10 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   /**
    * Append an agent log entry to the task's agent log file (JSONL format).
-   * Each entry is a single JSON line appended to `.hai/tasks/{ID}/agent.log`.
+   * Each entry is a single JSON line appended to `.kb/tasks/{ID}/agent.log`.
    * Also emits an `agent:log` event for live streaming.
    *
-   * @param taskId - The task ID (e.g. "HAI-001")
+   * @param taskId - The task ID (e.g. "KB-001")
    * @param text - The text content (delta for "text", tool name for "tool")
    * @param type - Whether this is a "text" delta or a "tool" invocation marker
    * @param detail - Optional human-readable summary of tool args (e.g. file path, command)
@@ -903,7 +903,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
    * Read all historical agent log entries for a task from its agent log file.
    * Returns entries in chronological order (oldest first).
    *
-   * @param taskId - The task ID (e.g. "HAI-001")
+   * @param taskId - The task ID (e.g. "KB-001")
    * @returns Array of agent log entries, empty if no log file exists
    */
   async getAgentLogs(taskId: string): Promise<AgentLogEntry[]> {

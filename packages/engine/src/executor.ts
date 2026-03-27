@@ -1,11 +1,11 @@
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { TaskStore, Task, TaskDetail, StepStatus, Settings } from "@hai/core";
+import type { TaskStore, Task, TaskDetail, StepStatus, Settings } from "@kb/core";
 import { findWorktreeUser } from "./merger.js";
 import { generateWorktreeName } from "./worktree-names.js";
 import { Type, type Static } from "@mariozechner/pi-ai";
-import { createHaiAgent } from "./pi.js";
+import { createKbAgent } from "./pi.js";
 import { reviewStep } from "./reviewer.js";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { AgentSemaphore } from "./concurrency.js";
@@ -36,7 +36,7 @@ const taskLogParams = Type.Object({
 const taskCreateParams = Type.Object({
   description: Type.String({ description: "What needs to be done" }),
   dependencies: Type.Optional(
-    Type.Array(Type.String(), { description: "Task IDs this new task depends on (e.g. [\"HAI-001\"])" }),
+    Type.Array(Type.String(), { description: "Task IDs this new task depends on (e.g. [\"KB-001\"])" }),
   ),
 });
 
@@ -56,7 +56,7 @@ const reviewStepParams = Type.Object({
   ),
 });
 
-const EXECUTOR_SYSTEM_PROMPT = `You are a task execution agent for "hai", an AI-orchestrated task board.
+const EXECUTOR_SYSTEM_PROMPT = `You are a task execution agent for "kb", an AI-orchestrated task board.
 
 You are working in a git worktree isolated from the main branch. Your job is to implement the task described in the PROMPT.md specification you're given.
 
@@ -239,7 +239,7 @@ export class TaskExecutor {
    * than being named after the task ID. This decouples directory names from
    * tasks, enabling worktree reuse across dependency chains. When resuming
    * a task that already has `task.worktree` set, the existing path is used
-   * as-is. Branches remain task-scoped (`hai/{task-id}`).
+   * as-is. Branches remain task-scoped (`kb/{task-id}`).
    */
   async execute(task: Task): Promise<void> {
     if (this.executing.has(task.id)) return;
@@ -261,7 +261,7 @@ export class TaskExecutor {
       }
 
       // Create or reuse worktree — try pool first when recycling is enabled
-      const branchName = `hai/${task.id.toLowerCase()}`;
+      const branchName = `kb/${task.id.toLowerCase()}`;
       // Use generateWorktreeName for human-friendly directory names (adjective-noun pattern)
       // instead of task.id, so worktrees are named like ".worktrees/swift-falcon"
       let worktreePath = task.worktree || join(this.rootDir, ".worktrees", generateWorktreeName(this.rootDir));
@@ -343,7 +343,7 @@ export class TaskExecutor {
       });
 
       const agentWork = async () => {
-        const { session } = await createHaiAgent({
+        const { session } = await createKbAgent({
           cwd: worktreePath,
           systemPrompt: EXECUTOR_SYSTEM_PROMPT,
           tools: "coding",
@@ -664,7 +664,7 @@ git log --oneline
     const IMAGE_MIMES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
     const lines = ["## Attachments", ""];
     for (const att of task.attachments) {
-      const absPath = `${rootDir}/.hai/tasks/${task.id}/attachments/${att.filename}`;
+      const absPath = `${rootDir}/.kb/tasks/${task.id}/attachments/${att.filename}`;
       if (IMAGE_MIMES.has(att.mimeType)) {
         lines.push(`- **${att.originalName}** (screenshot): \`${absPath}\``);
       } else {

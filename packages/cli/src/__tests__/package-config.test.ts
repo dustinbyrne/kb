@@ -19,9 +19,9 @@ function loadWorkflowYaml(name: string): any {
 describe("CLI package.json publishing config", () => {
   const pkg = loadPackageJson("cli");
 
-  it('has "bin" field with hai pointing to ./dist/bin.js', () => {
+  it('has "bin" field with kb pointing to ./dist/bin.js', () => {
     expect(pkg.bin).toBeDefined();
-    expect(pkg.bin.hai).toBe("./dist/bin.js");
+    expect(pkg.bin.kb).toBe("./dist/bin.js");
   });
 
   it('has "files" array that includes "dist"', () => {
@@ -35,11 +35,11 @@ describe("CLI package.json publishing config", () => {
   });
 });
 
-describe("Scoped @hai/* packages publishing config", () => {
+describe("Scoped @kb/* packages publishing config", () => {
   const scopedPackages = ["core", "engine", "dashboard"];
 
   for (const name of scopedPackages) {
-    describe(`@hai/${name}`, () => {
+    describe(`@kb/${name}`, () => {
       const pkg = loadPackageJson(name);
 
       it('has publishConfig with access "public"', () => {

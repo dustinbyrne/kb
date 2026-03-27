@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link, Clock, Layers } from "lucide-react";
-import type { Task, TaskDetail, Column } from "@hai/core";
+import type { Task, TaskDetail, Column } from "@kb/core";
 import { fetchTaskDetail, uploadAttachment } from "../api";
 import type { ToastType } from "../hooks/useToast";
 

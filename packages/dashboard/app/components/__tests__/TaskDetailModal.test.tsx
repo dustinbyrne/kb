@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { TaskDetailModal } from "../TaskDetailModal";
-import type { TaskDetail, Column, MergeResult, Task } from "@hai/core";
+import type { TaskDetail, Column, MergeResult, Task } from "@kb/core";
 
 vi.mock("../../api", () => ({
   uploadAttachment: vi.fn(),
@@ -16,7 +16,7 @@ vi.mock("../../hooks/useAgentLogs", () => ({
 
 function makeTask(overrides: Partial<TaskDetail> = {}): TaskDetail {
   return {
-    id: "HAI-099",
+    id: "KB-099",
     description: "Test task",
     column: "in-progress" as Column,
     dependencies: [],
@@ -157,7 +157,7 @@ describe("TaskDetailModal", () => {
         task={makeTask({
           title: undefined,
           description: "Fix the login bug",
-          prompt: "# HAI-099\n\nFix the login bug\n",
+          prompt: "# KB-099\n\nFix the login bug\n",
         })}
         onClose={noop}
         onMoveTask={noopMove}
@@ -167,13 +167,13 @@ describe("TaskDetailModal", () => {
       />,
     );
 
-    // The heading "HAI-099" should be stripped from the markdown
+    // The heading "KB-099" should be stripped from the markdown
     const markdownBody = container.querySelector(".markdown-body");
-    expect(markdownBody?.innerHTML).not.toContain("HAI-099");
+    expect(markdownBody?.innerHTML).not.toContain("KB-099");
     // Description appears in the markdown body
     expect(markdownBody?.textContent).toContain("Fix the login bug");
     // The detail header shows the ID (not duplicated as markdown heading)
-    expect(container.querySelector(".detail-id")?.textContent).toBe("HAI-099");
+    expect(container.querySelector(".detail-id")?.textContent).toBe("KB-099");
     // The h2 title shows description, not the task ID
     const h2 = container.querySelector("h2.detail-title");
     expect(h2?.textContent).toBe("Fix the login bug");
@@ -210,7 +210,7 @@ describe("TaskDetailModal", () => {
         addToast={noop}
       />,
     );
-    expect(withTitle.querySelector(".detail-id")?.textContent).toBe("HAI-099");
+    expect(withTitle.querySelector(".detail-id")?.textContent).toBe("KB-099");
 
     // Without title
     const { container: withoutTitle } = render(
@@ -223,7 +223,7 @@ describe("TaskDetailModal", () => {
         addToast={noop}
       />,
     );
-    expect(withoutTitle.querySelector(".detail-id")?.textContent).toBe("HAI-099");
+    expect(withoutTitle.querySelector(".detail-id")?.textContent).toBe("KB-099");
   });
 
   describe("paste image upload", () => {
@@ -267,7 +267,7 @@ describe("TaskDetailModal", () => {
       });
 
       await waitFor(() => {
-        expect(mockUpload).toHaveBeenCalledWith("HAI-099", imageFile);
+        expect(mockUpload).toHaveBeenCalledWith("KB-099", imageFile);
         expect(addToast).toHaveBeenCalledWith("Screenshot attached", "success");
       });
     });
@@ -394,7 +394,7 @@ describe("TaskDetailModal", () => {
       });
 
       await waitFor(() => {
-        expect(mockUpload).toHaveBeenCalledWith("HAI-099", imageFile);
+        expect(mockUpload).toHaveBeenCalledWith("KB-099", imageFile);
         expect(addToast).toHaveBeenCalledWith("Screenshot attached", "success");
       });
     });
@@ -418,7 +418,7 @@ describe("TaskDetailModal", () => {
   it("renders dependency list when dependencies exist", () => {
     render(
       <TaskDetailModal
-        task={makeTask({ dependencies: ["HAI-001", "HAI-002"] })}
+        task={makeTask({ dependencies: ["KB-001", "KB-002"] })}
         onClose={noop}
         onMoveTask={noopMove}
         onDeleteTask={noopDelete}
@@ -427,16 +427,16 @@ describe("TaskDetailModal", () => {
       />,
     );
 
-    expect(screen.getByText("HAI-001")).toBeTruthy();
-    expect(screen.getByText("HAI-002")).toBeTruthy();
+    expect(screen.getByText("KB-001")).toBeTruthy();
+    expect(screen.getByText("KB-002")).toBeTruthy();
     expect(screen.queryByText("(no dependencies)")).toBeNull();
   });
 
   it("can add a dependency via the dropdown", async () => {
     const { updateTask } = await import("../../api");
     const allTasks: Task[] = [
-      { id: "HAI-001", description: "Dep 1", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "", updatedAt: "" },
-      { id: "HAI-099", description: "Self", column: "in-progress" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "", updatedAt: "" },
+      { id: "KB-001", description: "Dep 1", column: "todo" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "", updatedAt: "" },
+      { id: "KB-099", description: "Self", column: "in-progress" as Column, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: "", updatedAt: "" },
     ];
 
     render(
@@ -452,16 +452,16 @@ describe("TaskDetailModal", () => {
     );
 
     fireEvent.click(screen.getByText("Add Dependency"));
-    // Should show HAI-001 in the dropdown but not HAI-099 (self is excluded)
+    // Should show KB-001 in the dropdown but not KB-099 (self is excluded)
     const dropdown = document.querySelector(".dep-dropdown")!;
     expect(dropdown).toBeTruthy();
-    expect(dropdown.textContent).toContain("HAI-001");
+    expect(dropdown.textContent).toContain("KB-001");
     expect(dropdown.querySelectorAll(".dep-dropdown-item")).toHaveLength(1);
 
-    fireEvent.click(screen.getByText("HAI-001"));
+    fireEvent.click(screen.getByText("KB-001"));
 
     await waitFor(() => {
-      expect(updateTask).toHaveBeenCalledWith("HAI-099", { dependencies: ["HAI-001"] });
+      expect(updateTask).toHaveBeenCalledWith("KB-099", { dependencies: ["KB-001"] });
     });
   });
 
@@ -470,7 +470,7 @@ describe("TaskDetailModal", () => {
 
     render(
       <TaskDetailModal
-        task={makeTask({ dependencies: ["HAI-001", "HAI-002"] })}
+        task={makeTask({ dependencies: ["KB-001", "KB-002"] })}
         onClose={noop}
         onMoveTask={noopMove}
         onDeleteTask={noopDelete}
@@ -480,10 +480,10 @@ describe("TaskDetailModal", () => {
     );
 
     const removeButtons = screen.getAllByTitle(/Remove dependency/);
-    fireEvent.click(removeButtons[0]); // Remove HAI-001
+    fireEvent.click(removeButtons[0]); // Remove KB-001
 
     await waitFor(() => {
-      expect(updateTask).toHaveBeenCalledWith("HAI-099", { dependencies: ["HAI-002"] });
+      expect(updateTask).toHaveBeenCalledWith("KB-099", { dependencies: ["KB-002"] });
     });
   });
 

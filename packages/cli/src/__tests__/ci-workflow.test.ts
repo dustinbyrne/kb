@@ -51,7 +51,7 @@ describe("CI workflow (.github/workflows/ci.yml)", () => {
   });
 
   it("verifies binary exists after build", () => {
-    expect(content).toContain("test -f packages/cli/dist/hai");
+    expect(content).toContain("test -f packages/cli/dist/kb");
   });
 
   it("includes pnpm test step", () => {

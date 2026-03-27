@@ -6,8 +6,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const cliRoot = join(import.meta.dirname!, "..", "..");
-const outBinary = join(cliRoot, "dist", process.platform === "win32" ? "hai.exe" : "hai");
-const binaryName = process.platform === "win32" ? "hai.exe" : "hai";
+const outBinary = join(cliRoot, "dist", process.platform === "win32" ? "kb.exe" : "kb");
+const binaryName = process.platform === "win32" ? "kb.exe" : "kb";
 const clientDir = join(cliRoot, "dist", "client");
 
 /**
@@ -15,7 +15,7 @@ const clientDir = join(cliRoot, "dist", "client");
  * assets — no package.json. Returns the dir path and a cleanup function.
  */
 function createIsolatedDir(): { dir: string; binary: string; cleanup: () => void } {
-  const dir = mkdtempSync(join(tmpdir(), "hai-iso-"));
+  const dir = mkdtempSync(join(tmpdir(), "kb-iso-"));
   cpSync(outBinary, join(dir, binaryName), { recursive: true });
   cpSync(clientDir, join(dir, "client"), { recursive: true });
   return {
@@ -60,7 +60,7 @@ describe("build-exe", () => {
         timeout: 15_000,
       });
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("hai — AI-orchestrated task board");
+      expect(result.stdout).toContain("kb — AI-orchestrated task board");
       expect(result.stdout).toContain("dashboard");
       expect(result.stdout).toContain("task create");
       expect(result.stdout).toContain("task list");
@@ -110,7 +110,7 @@ describe("build-exe", () => {
           resolve(out);
         });
       });
-      expect(output).toContain("hai board");
+      expect(output).toContain("kb board");
     } finally {
       cleanup();
     }

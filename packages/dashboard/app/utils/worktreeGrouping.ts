@@ -1,4 +1,4 @@
-import type { Task } from "@hai/core";
+import type { Task } from "@kb/core";
 
 export interface WorktreeGroupData {
   label: string;
@@ -8,7 +8,7 @@ export interface WorktreeGroupData {
 
 /**
  * Extract a clean display name from a worktree path.
- * e.g. ".worktrees/HAI-001" → "HAI-001", "/path/to/hai/hai-001" → "hai-001"
+ * e.g. ".worktrees/KB-001" → "KB-001", "/path/to/kb/kb-001" → "kb-001"
  */
 export function getWorktreeLabel(worktreePath: string): string {
   // Take the last segment of the path
@@ -18,8 +18,8 @@ export function getWorktreeLabel(worktreePath: string): string {
 
 /**
  * Topological sort of tasks by dependency order.
- * Mirrors resolveDependencyOrder from @hai/core but inlined to avoid
- * build alias issues (Vite aliases @hai/core to types.ts only).
+ * Mirrors resolveDependencyOrder from @kb/core but inlined to avoid
+ * build alias issues (Vite aliases @kb/core to types.ts only).
  */
 function resolveDependencyOrder(tasks: Task[]): string[] {
   const taskMap = new Map(tasks.map((t) => [t.id, t]));

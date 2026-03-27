@@ -1,5 +1,5 @@
 /**
- * Lightweight structured logger for the `@hai/engine` package.
+ * Lightweight structured logger for the `@kb/engine` package.
  *
  * Usage:
  * ```ts

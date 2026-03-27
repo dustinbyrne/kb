@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import type { Task } from "./types.js";
 
 function makeTmpDir(): string {
-  return mkdtempSync(join(tmpdir(), "hai-store-test-"));
+  return mkdtempSync(join(tmpdir(), "kb-store-test-"));
 }
 
 describe("TaskStore", () => {
@@ -32,7 +32,7 @@ describe("TaskStore", () => {
   async function createTaskWithSteps(): Promise<Task> {
     const task = await store.createTask({ description: "Task with steps" });
     // Write a PROMPT.md with steps so updateStep works
-    const dir = join(rootDir, ".hai", "tasks", task.id);
+    const dir = join(rootDir, ".kb", "tasks", task.id);
     await writeFile(
       join(dir, "PROMPT.md"),
       `# ${task.id}: Task with steps
@@ -63,7 +63,7 @@ describe("TaskStore", () => {
       const detail = await store.getTask(task.id);
 
       // Heading should be just the ID, not the description
-      expect(detail.prompt).toMatch(/^# HAI-001\n/);
+      expect(detail.prompt).toMatch(/^# KB-001\n/);
       // Description appears exactly once
       const count = detail.prompt.split("Fix the login bug").length - 1;
       expect(count).toBe(1);
@@ -76,7 +76,7 @@ describe("TaskStore", () => {
       });
       const detail = await store.getTask(task.id);
 
-      expect(detail.prompt).toMatch(/^# HAI-001: Login bug\n/);
+      expect(detail.prompt).toMatch(/^# KB-001: Login bug\n/);
       expect(detail.prompt).toContain("Fix the login bug on the settings page");
     });
 
@@ -88,7 +88,7 @@ describe("TaskStore", () => {
       const detail = await store.getTask(task.id);
 
       // Heading should be just the ID
-      expect(detail.prompt).toMatch(/^# HAI-001\n/);
+      expect(detail.prompt).toMatch(/^# KB-001\n/);
       // Description appears exactly once (in Mission section)
       const count = detail.prompt.split("Implement caching layer").length - 1;
       expect(count).toBe(1);
@@ -102,7 +102,7 @@ describe("TaskStore", () => {
       });
       const detail = await store.getTask(task.id);
 
-      expect(detail.prompt).toMatch(/^# HAI-001: Add caching\n/);
+      expect(detail.prompt).toMatch(/^# KB-001: Add caching\n/);
       expect(detail.prompt).toContain("Implement caching layer for API responses");
     });
   });
@@ -129,7 +129,7 @@ describe("TaskStore", () => {
       await Promise.all(promises);
 
       // Read back and verify valid JSON
-      const taskJsonPath = join(rootDir, ".hai", "tasks", id, "task.json");
+      const taskJsonPath = join(rootDir, ".kb", "tasks", id, "task.json");
       const raw = await readFile(taskJsonPath, "utf-8");
       const result = JSON.parse(raw) as Task;
 
@@ -144,7 +144,7 @@ describe("TaskStore", () => {
   describe("defensive JSON parsing", () => {
     it("throws on corrupted task.json with trailing duplicate content (atomic writes prevent this)", async () => {
       const task = await createTestTask();
-      const taskJsonPath = join(rootDir, ".hai", "tasks", task.id, "task.json");
+      const taskJsonPath = join(rootDir, ".kb", "tasks", task.id, "task.json");
 
       // Corrupt the file: append duplicate trailing content
       const validJson = await readFile(taskJsonPath, "utf-8");
@@ -157,7 +157,7 @@ describe("TaskStore", () => {
 
     it("throws a clear error when JSON is completely unrecoverable", async () => {
       const task = await createTestTask();
-      const taskJsonPath = join(rootDir, ".hai", "tasks", task.id, "task.json");
+      const taskJsonPath = join(rootDir, ".kb", "tasks", task.id, "task.json");
 
       // Write completely invalid content
       await writeFile(taskJsonPath, "not json at all {{{");
@@ -171,7 +171,7 @@ describe("TaskStore", () => {
   describe("atomic writes", () => {
     it("produces valid JSON after write with no .tmp files left behind", async () => {
       const task = await createTestTask();
-      const dir = join(rootDir, ".hai", "tasks", task.id);
+      const dir = join(rootDir, ".kb", "tasks", task.id);
 
       // Perform a write
       await store.logEntry(task.id, "atomic test");
@@ -200,18 +200,18 @@ describe("TaskStore", () => {
       const ids = tasks.map((t) => t.id);
       expect(new Set(ids).size).toBe(5);
 
-      // IDs should be sequential (HAI-001 through HAI-005)
+      // IDs should be sequential (KB-001 through KB-005)
       const sortedIds = [...ids].sort();
-      expect(sortedIds).toEqual(["HAI-001", "HAI-002", "HAI-003", "HAI-004", "HAI-005"]);
+      expect(sortedIds).toEqual(["KB-001", "KB-002", "KB-003", "KB-004", "KB-005"]);
 
       // config.json should be valid JSON with nextId = 6
-      const configPath = join(rootDir, ".hai", "config.json");
+      const configPath = join(rootDir, ".kb", "config.json");
       const raw = await readFile(configPath, "utf-8");
       const config = JSON.parse(raw);
       expect(config.nextId).toBe(6);
 
       // No .tmp files left behind
-      const haiDir = join(rootDir, ".hai");
+      const haiDir = join(rootDir, ".kb");
       const files = await readdir(haiDir);
       expect(files.filter((f) => f.endsWith(".tmp"))).toHaveLength(0);
     });
@@ -240,7 +240,7 @@ describe("TaskStore", () => {
       expect(updated.attachments![0].filename).toBe(attachment.filename);
 
       // Verify file on disk
-      const filePath = join(rootDir, ".hai", "tasks", task.id, "attachments", attachment.filename);
+      const filePath = join(rootDir, ".kb", "tasks", task.id, "attachments", attachment.filename);
       const content = await readFile(filePath);
       expect(content).toEqual(TINY_PNG);
     });
@@ -296,7 +296,7 @@ describe("TaskStore", () => {
       expect(updated.attachments).toBeUndefined();
 
       // Verify file removed from disk
-      const filePath = join(rootDir, ".hai", "tasks", task.id, "attachments", attachment.filename);
+      const filePath = join(rootDir, ".kb", "tasks", task.id, "attachments", attachment.filename);
       expect(existsSync(filePath)).toBe(false);
     });
 
@@ -369,48 +369,48 @@ describe("TaskStore", () => {
       const task = await createTestTask();
       expect(task.dependencies).toEqual([]);
 
-      const updated = await store.updateTask(task.id, { dependencies: ["HAI-001", "HAI-002"] });
-      expect(updated.dependencies).toEqual(["HAI-001", "HAI-002"]);
+      const updated = await store.updateTask(task.id, { dependencies: ["KB-001", "KB-002"] });
+      expect(updated.dependencies).toEqual(["KB-001", "KB-002"]);
 
       // Verify persistence
       const fetched = await store.getTask(task.id);
-      expect(fetched.dependencies).toEqual(["HAI-001", "HAI-002"]);
+      expect(fetched.dependencies).toEqual(["KB-001", "KB-002"]);
     });
 
     it("replaces existing dependencies", async () => {
-      const task = await store.createTask({ description: "Dep task", dependencies: ["HAI-001"] });
-      expect(task.dependencies).toEqual(["HAI-001"]);
+      const task = await store.createTask({ description: "Dep task", dependencies: ["KB-001"] });
+      expect(task.dependencies).toEqual(["KB-001"]);
 
-      const updated = await store.updateTask(task.id, { dependencies: ["HAI-002", "HAI-003"] });
-      expect(updated.dependencies).toEqual(["HAI-002", "HAI-003"]);
+      const updated = await store.updateTask(task.id, { dependencies: ["KB-002", "KB-003"] });
+      expect(updated.dependencies).toEqual(["KB-002", "KB-003"]);
     });
 
     it("clears dependencies with empty array", async () => {
-      const task = await store.createTask({ description: "Dep task", dependencies: ["HAI-001"] });
-      expect(task.dependencies).toEqual(["HAI-001"]);
+      const task = await store.createTask({ description: "Dep task", dependencies: ["KB-001"] });
+      expect(task.dependencies).toEqual(["KB-001"]);
 
       const updated = await store.updateTask(task.id, { dependencies: [] });
       expect(updated.dependencies).toEqual([]);
     });
 
     it("leaves dependencies unchanged when not provided", async () => {
-      const task = await store.createTask({ description: "Dep task", dependencies: ["HAI-001"] });
+      const task = await store.createTask({ description: "Dep task", dependencies: ["KB-001"] });
 
       const updated = await store.updateTask(task.id, { title: "New title" });
-      expect(updated.dependencies).toEqual(["HAI-001"]);
+      expect(updated.dependencies).toEqual(["KB-001"]);
     });
   });
 
   describe("updateTask — blockedBy", () => {
     it("sets blockedBy to a string value", async () => {
       const task = await store.createTask({ title: "Blocked task", description: "A task" });
-      const updated = await store.updateTask(task.id, { blockedBy: "HAI-999" });
-      expect(updated.blockedBy).toBe("HAI-999");
+      const updated = await store.updateTask(task.id, { blockedBy: "KB-999" });
+      expect(updated.blockedBy).toBe("KB-999");
     });
 
     it("clears blockedBy when set to null", async () => {
       const task = await store.createTask({ title: "Blocked task", description: "A task" });
-      await store.updateTask(task.id, { blockedBy: "HAI-999" });
+      await store.updateTask(task.id, { blockedBy: "KB-999" });
       const updated = await store.updateTask(task.id, { blockedBy: null });
       expect(updated.blockedBy).toBeUndefined();
     });
@@ -419,9 +419,9 @@ describe("TaskStore", () => {
   // ── Task prefix tests ──────────────────────────────────────────
 
   describe("taskPrefix setting", () => {
-    it("default prefix produces HAI-001 IDs", async () => {
+    it("default prefix produces KB-001 IDs", async () => {
       const task = await store.createTask({ description: "Default prefix" });
-      expect(task.id).toBe("HAI-001");
+      expect(task.id).toBe("KB-001");
     });
 
     it("custom prefix produces PROJ-001 IDs", async () => {
@@ -433,8 +433,8 @@ describe("TaskStore", () => {
     it("prefix change mid-stream continues sequence", async () => {
       const t1 = await store.createTask({ description: "First" });
       const t2 = await store.createTask({ description: "Second" });
-      expect(t1.id).toBe("HAI-001");
-      expect(t2.id).toBe("HAI-002");
+      expect(t1.id).toBe("KB-001");
+      expect(t2.id).toBe("KB-002");
 
       await store.updateSettings({ taskPrefix: "PROJ" });
       const t3 = await store.createTask({ description: "Third" });
@@ -448,7 +448,7 @@ describe("TaskStore", () => {
 
       const tasks = await store.listTasks();
       expect(tasks).toHaveLength(2);
-      expect(tasks.map((t) => t.id).sort()).toEqual(["HAI-001", "PROJ-002"]);
+      expect(tasks.map((t) => t.id).sort()).toEqual(["KB-001", "PROJ-002"]);
     });
   });
 

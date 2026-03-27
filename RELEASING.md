@@ -36,7 +36,7 @@ When you merge the Version Packages PR:
 
 - The `version.yml` workflow detects that all changesets have been consumed
 - It builds all packages and publishes them to **npm** with provenance attestation
-- It creates a git tag `v{version}` based on the `hai` CLI package version
+- It creates a git tag `v{version}` based on the `kb` CLI package version
 - The tag push triggers `release.yml`, which:
   - Builds platform-specific binaries for Linux x64, macOS x64, macOS arm64, and Windows x64
   - Signs macOS binaries (codesign + notarization) and Windows binaries (Authenticode)
@@ -54,10 +54,10 @@ When you merge the Version Packages PR:
 
 | Platform | Binary name | Signed |
 |----------|------------|--------|
-| Linux x64 | `hai-linux-x64` | — |
-| macOS arm64 | `hai-darwin-arm64` | ✓ (codesign + notarization) |
-| macOS x64 | `hai-darwin-x64` | ✓ (codesign + notarization) |
-| Windows x64 | `hai-windows-x64.exe` | ✓ (Authenticode) |
+| Linux x64 | `kb-linux-x64` | — |
+| macOS arm64 | `kb-darwin-arm64` | ✓ (codesign + notarization) |
+| macOS x64 | `kb-darwin-x64` | ✓ (codesign + notarization) |
+| Windows x64 | `kb-windows-x64.exe` | ✓ (Authenticode) |
 
 ## Testing binary builds
 
@@ -85,9 +85,9 @@ This will trigger `release.yml` to build binaries and create a GitHub Release. N
 | `pnpm changeset` | Add a new changeset |
 | `pnpm changeset status` | Check pending changesets |
 | `pnpm release:version` | Apply changesets and bump versions (used by CI) |
-| `pnpm --filter hai build:exe` | Build binary for current platform |
-| `pnpm --filter hai build:exe -- --target <target>` | Cross-compile for a specific platform |
-| `pnpm --filter hai build:exe:all` | Build binaries for all platforms |
+| `pnpm --filter @dustinbyrne/kb build:exe` | Build binary for current platform |
+| `pnpm --filter @dustinbyrne/kb build:exe -- --target <target>` | Cross-compile for a specific platform |
+| `pnpm --filter @dustinbyrne/kb build:exe:all` | Build binaries for all platforms |
 
 ## Tips
 

@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import type { TaskStore, Task, MergeResult } from "@hai/core";
-import { createHaiAgent } from "./pi.js";
+import type { TaskStore, Task, MergeResult } from "@kb/core";
+import { createKbAgent } from "./pi.js";
 import type { WorktreePool } from "./worktree-pool.js";
 import { AgentLogger } from "./agent-logger.js";
 import { mergerLog } from "./logger.js";
@@ -19,13 +19,13 @@ git commit -m "<type>(<scope>): <summary>" -m "<body>"
 
 Message format:
 - **Type:** feat, fix, refactor, docs, test, chore
-- **Scope:** the task ID (e.g., HAI-001)
+- **Scope:** the task ID (e.g., KB-001)
 - **Summary:** one line describing what the squash brings in (imperative mood)
 - **Body:** 2-5 bullet points summarizing the key changes, each starting with "- "
 
 Example:
 \`\`\`
-git commit -m "feat(HAI-003): add user profile page" -m "- Add /profile route with avatar upload
+git commit -m "feat(KB-003): add user profile page" -m "- Add /profile route with avatar upload
 - Create ProfileCard and EditProfileForm components
 - Add profile image resizing via sharp
 - Update nav bar with profile link
@@ -51,7 +51,7 @@ git commit -m "feat: add user profile page" -m "- Add /profile route with avatar
 - Add profile e2e tests"
 \`\`\``;
 
-  return `You are a merge agent for "hai", an AI-orchestrated task board.
+  return `You are a merge agent for "kb", an AI-orchestrated task board.
 
 Your job is to finalize a squash merge: resolve any conflicts and write a good commit message.
 All changes from the branch are squashed into a single commit.
@@ -130,7 +130,7 @@ export async function aiMergeTask(
     );
   }
 
-  const branch = `hai/${taskId.toLowerCase()}`;
+  const branch = `kb/${taskId.toLowerCase()}`;
   const worktreePath = task.worktree;
   const result: MergeResult = {
     task,
@@ -231,7 +231,7 @@ export async function aiMergeTask(
   });
 
   // Forward model settings from store so the merger honours the user's model choice
-  const { session } = await createHaiAgent({
+  const { session } = await createKbAgent({
     cwd: rootDir,
     systemPrompt: buildMergeSystemPrompt(includeTaskId),
     tools: "coding",

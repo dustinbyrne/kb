@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Task, Column, TaskCreateInput, MergeResult } from "@hai/core";
+import type { Task, Column, TaskCreateInput, MergeResult } from "@kb/core";
 import * as api from "../api";
 
 export function useTasks() {

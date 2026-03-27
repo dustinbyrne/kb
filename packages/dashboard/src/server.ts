@@ -2,7 +2,7 @@ import express from "express";
 import { join, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { TaskStore, MergeResult } from "@hai/core";
+import type { TaskStore, MergeResult } from "@kb/core";
 import type { AuthStorageLike, ModelRegistryLike } from "./routes.js";
 import { createApiRoutes } from "./routes.js";
 import { createSSE } from "./sse.js";
@@ -27,14 +27,14 @@ export function createServer(store: TaskStore, options?: ServerOptions): ReturnT
 
   // Serve built React app
   // Resolution order:
-  //   1. HAI_CLIENT_DIR env override (explicit)
-  //   2. Next to process.execPath (bun-compiled binary: dist/hai + dist/client/)
+  //   1. KB_CLIENT_DIR env override (explicit)
+  //   2. Next to process.execPath (bun-compiled binary: dist/kb + dist/client/)
   //   3. __dirname/../dist/client  (running from src/ via tsx/ts-node)
   //   4. __dirname/../client        (running from dist/ after tsc)
   //   5. __dirname/../public        (fallback for dev)
   const execDir = dirname(process.execPath);
-  const clientDir = process.env.HAI_CLIENT_DIR
-    ? process.env.HAI_CLIENT_DIR
+  const clientDir = process.env.KB_CLIENT_DIR
+    ? process.env.KB_CLIENT_DIR
     : existsSync(join(execDir, "client", "index.html"))
       ? join(execDir, "client")
       : existsSync(join(__dirname, "..", "dist", "client"))

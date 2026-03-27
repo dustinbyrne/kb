@@ -8,7 +8,7 @@
  * - Verdict + feedback is returned to the worker
  */
 
-import { createHaiAgent } from "./pi.js";
+import { createKbAgent } from "./pi.js";
 
 const REVIEWER_SYSTEM_PROMPT = `You are an independent code and plan reviewer.
 
@@ -136,7 +136,7 @@ export async function reviewStep(
   );
 
   // Spawn a reviewer agent with read-only tools
-  const { session } = await createHaiAgent({
+  const { session } = await createKbAgent({
     cwd,
     systemPrompt: REVIEWER_SYSTEM_PROMPT,
     tools: "readonly",

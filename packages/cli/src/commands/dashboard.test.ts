@@ -26,26 +26,26 @@ function makeMockStore() {
   };
 }
 
-// ── Mock @hai/core ──────────────────────────────────────────────────
+// ── Mock @kb/core ──────────────────────────────────────────────────
 
-vi.mock("@hai/core", () => ({
+vi.mock("@kb/core", () => ({
   TaskStore: vi.fn().mockImplementation(() => makeMockStore()),
 }));
 
-// ── Mock @hai/dashboard ─────────────────────────────────────────────
+// ── Mock @kb/dashboard ─────────────────────────────────────────────
 
 const mockListen = vi.fn();
-vi.mock("@hai/dashboard", () => ({
+vi.mock("@kb/dashboard", () => ({
   createServer: vi.fn(() => ({ listen: mockListen })),
 }));
 
-// ── Mock @hai/engine ────────────────────────────────────────────────
+// ── Mock @kb/engine ────────────────────────────────────────────────
 
 // We need the real WorktreePool class so we can assert `instanceof`.
-const { WorktreePool } = await import("@hai/engine");
+const { WorktreePool } = await import("@kb/engine");
 
-vi.mock("@hai/engine", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@hai/engine")>();
+vi.mock("@kb/engine", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@kb/engine")>();
   return {
     ...original,
     // Keep real WorktreePool & AgentSemaphore
@@ -81,10 +81,10 @@ describe("runDashboard — WorktreePool wiring", () => {
     capturedExecutorOpts = undefined;
     vi.clearAllMocks();
     // Re-set TaskStore mock (clearAllMocks wipes implementations)
-    const { TaskStore } = await import("@hai/core");
+    const { TaskStore } = await import("@kb/core");
     (TaskStore as ReturnType<typeof vi.fn>).mockImplementation(() => makeMockStore());
     // Re-set engine mocks
-    const engine = await import("@hai/engine");
+    const engine = await import("@kb/engine");
     (engine.aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
       Promise.resolve({ merged: true }),
     );
@@ -104,8 +104,8 @@ describe("runDashboard — WorktreePool wiring", () => {
   });
 
   it("passes a WorktreePool instance to aiMergeTask via rawMerge", async () => {
-    const { aiMergeTask } = await import("@hai/engine");
-    const { createServer } = await import("@hai/dashboard");
+    const { aiMergeTask } = await import("@kb/engine");
+    const { createServer } = await import("@kb/dashboard");
 
     await runDashboard(0, { open: false });
 
@@ -114,7 +114,7 @@ describe("runDashboard — WorktreePool wiring", () => {
     const serverOpts = createServerCall[1] as { onMerge: (taskId: string) => Promise<unknown> };
 
     // Invoke the merge handler
-    await serverOpts.onMerge("HAI-TEST");
+    await serverOpts.onMerge("KB-TEST");
 
     expect(aiMergeTask).toHaveBeenCalled();
     const mergeCallOpts = (aiMergeTask as ReturnType<typeof vi.fn>).mock.calls[0][3];
@@ -122,15 +122,15 @@ describe("runDashboard — WorktreePool wiring", () => {
   });
 
   it("shares the same WorktreePool instance between executor and merger", async () => {
-    const { aiMergeTask } = await import("@hai/engine");
-    const { createServer } = await import("@hai/dashboard");
+    const { aiMergeTask } = await import("@kb/engine");
+    const { createServer } = await import("@kb/dashboard");
 
     await runDashboard(0, { open: false });
 
     // Trigger merger via onMerge
     const createServerCall = (createServer as ReturnType<typeof vi.fn>).mock.calls[0];
     const serverOpts = createServerCall[1] as { onMerge: (taskId: string) => Promise<unknown> };
-    await serverOpts.onMerge("HAI-TEST");
+    await serverOpts.onMerge("KB-TEST");
 
     const executorPool = capturedExecutorOpts!.pool;
     const mergerPool = (aiMergeTask as ReturnType<typeof vi.fn>).mock.calls[0][3].pool;
@@ -148,9 +148,9 @@ describe("runDashboard — auto-merge pause exclusion", () => {
     capturedExecutorOpts = undefined;
     vi.clearAllMocks();
     mockStore = makeMockStore();
-    const { TaskStore } = await import("@hai/core");
+    const { TaskStore } = await import("@kb/core");
     (TaskStore as ReturnType<typeof vi.fn>).mockImplementation(() => mockStore);
-    const engine = await import("@hai/engine");
+    const engine = await import("@kb/engine");
     (engine.aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
       Promise.resolve({ merged: true }),
     );
@@ -172,11 +172,11 @@ describe("runDashboard — auto-merge pause exclusion", () => {
 
     await runDashboard(0, { open: false });
 
-    const { aiMergeTask } = await import("@hai/engine");
+    const { aiMergeTask } = await import("@kb/engine");
 
     // Emit task:moved with a paused task
     mockStore.emit("task:moved", {
-      task: { id: "HAI-PAUSED", column: "in-review", paused: true },
+      task: { id: "KB-PAUSED", column: "in-review", paused: true },
       from: "in-progress",
       to: "in-review",
     });
@@ -195,11 +195,11 @@ describe("runDashboard — auto-merge pause exclusion", () => {
       pollIntervalMs: 60_000,
     });
     mockStore.listTasks.mockResolvedValue([
-      { id: "HAI-PAUSED", column: "in-review", paused: true },
-      { id: "HAI-ACTIVE", column: "in-review", paused: false },
+      { id: "KB-PAUSED", column: "in-review", paused: true },
+      { id: "KB-ACTIVE", column: "in-review", paused: false },
     ]);
 
-    const { aiMergeTask } = await import("@hai/engine");
+    const { aiMergeTask } = await import("@kb/engine");
     // Reset after import
     (aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
       Promise.resolve({ merged: true }),
@@ -214,6 +214,6 @@ describe("runDashboard — auto-merge pause exclusion", () => {
     const mergedIds = (aiMergeTask as ReturnType<typeof vi.fn>).mock.calls.map(
       (call: any[]) => call[2],
     );
-    expect(mergedIds).not.toContain("HAI-PAUSED");
+    expect(mergedIds).not.toContain("KB-PAUSED");
   });
 });

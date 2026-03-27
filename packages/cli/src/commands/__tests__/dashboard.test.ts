@@ -24,23 +24,23 @@ function makeMockStore() {
   };
 }
 
-// ── Mock @hai/core ──────────────────────────────────────────────────
+// ── Mock @kb/core ──────────────────────────────────────────────────
 
-vi.mock("@hai/core", () => ({
+vi.mock("@kb/core", () => ({
   TaskStore: vi.fn().mockImplementation(() => makeMockStore()),
 }));
 
-// ── Mock @hai/dashboard ─────────────────────────────────────────────
+// ── Mock @kb/dashboard ─────────────────────────────────────────────
 
 const mockListen = vi.fn();
-vi.mock("@hai/dashboard", () => ({
+vi.mock("@kb/dashboard", () => ({
   createServer: vi.fn(() => ({ listen: mockListen })),
 }));
 
-// ── Mock @hai/engine ────────────────────────────────────────────────
+// ── Mock @kb/engine ────────────────────────────────────────────────
 
-vi.mock("@hai/engine", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@hai/engine")>();
+vi.mock("@kb/engine", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@kb/engine")>();
   return {
     ...original,
     WorktreePool: original.WorktreePool,
@@ -81,12 +81,12 @@ const { runDashboard } = await import("../dashboard.js");
 describe("runDashboard — AuthStorage & ModelRegistry wiring", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const { TaskStore } = await import("@hai/core");
+    const { TaskStore } = await import("@kb/core");
     (TaskStore as ReturnType<typeof vi.fn>).mockImplementation(() => makeMockStore());
   });
 
   it("passes authStorage and modelRegistry to createServer", async () => {
-    const { createServer } = await import("@hai/dashboard");
+    const { createServer } = await import("@kb/dashboard");
 
     await runDashboard(0, { open: false });
 

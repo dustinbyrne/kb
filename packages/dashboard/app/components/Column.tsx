@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useFlashOnIncrease } from "../hooks/useFlashOnIncrease";
-import type { Task, TaskDetail, TaskCreateInput, Column as ColumnType } from "@hai/core";
-import { COLUMN_LABELS, COLUMN_DESCRIPTIONS } from "@hai/core";
+import type { Task, TaskDetail, TaskCreateInput, Column as ColumnType } from "@kb/core";
+import { COLUMN_LABELS, COLUMN_DESCRIPTIONS } from "@kb/core";
 import { TaskCard } from "./TaskCard";
 import { WorktreeGroup } from "./WorktreeGroup";
 import { InlineCreateCard } from "./InlineCreateCard";

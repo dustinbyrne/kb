@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AgentLogger, summarizeToolArgs } from "./agent-logger.js";
-import type { TaskStore } from "@hai/core";
+import type { TaskStore } from "@kb/core";
 
 // ── summarizeToolArgs tests ──────────────────────────────────────────
 
@@ -62,7 +62,7 @@ describe("AgentLogger", () => {
     const store = createMockStore();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-001",
+      taskId: "KB-001",
       flushSizeBytes: 10,
       flushIntervalMs: 500,
     });
@@ -75,14 +75,14 @@ describe("AgentLogger", () => {
     logger.onText("worldextra");
     // Allow async flush
     await vi.advanceTimersByTimeAsync(0);
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-001", "helloworldextra", "text");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-001", "helloworldextra", "text");
   });
 
   it("flushes on timer when under size threshold", async () => {
     const store = createMockStore();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-002",
+      taskId: "KB-002",
       flushSizeBytes: 1024,
       flushIntervalMs: 500,
     });
@@ -91,14 +91,14 @@ describe("AgentLogger", () => {
     expect(store.appendAgentLog).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(500);
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-002", "small", "text");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-002", "small", "text");
   });
 
   it("flushes text before logging tool start", async () => {
     const store = createMockStore();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-003",
+      taskId: "KB-003",
       flushSizeBytes: 1024,
     });
 
@@ -110,36 +110,36 @@ describe("AgentLogger", () => {
     const calls = (store.appendAgentLog as ReturnType<typeof vi.fn>).mock.calls;
     expect(calls.length).toBe(2);
     // Text flushed first
-    expect(calls[0]).toEqual(["HAI-003", "pending text", "text"]);
+    expect(calls[0]).toEqual(["KB-003", "pending text", "text"]);
     // Tool logged second with detail
-    expect(calls[1]).toEqual(["HAI-003", "Bash", "tool", "ls"]);
+    expect(calls[1]).toEqual(["KB-003", "Bash", "tool", "ls"]);
   });
 
   it("logs tool detail using summarizeToolArgs", async () => {
     const store = createMockStore();
-    const logger = new AgentLogger({ store, taskId: "HAI-004" });
+    const logger = new AgentLogger({ store, taskId: "KB-004" });
 
     logger.onToolStart("Read", { path: "src/index.ts" });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-004", "Read", "tool", "src/index.ts");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-004", "Read", "tool", "src/index.ts");
   });
 
   it("logs tool with undefined detail for unknown args", async () => {
     const store = createMockStore();
-    const logger = new AgentLogger({ store, taskId: "HAI-005" });
+    const logger = new AgentLogger({ store, taskId: "KB-005" });
 
     logger.onToolStart("task_done", { count: 42 });
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-005", "task_done", "tool", undefined);
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-005", "task_done", "tool", undefined);
   });
 
   it("flush() clears timer and writes remaining text", async () => {
     const store = createMockStore();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-006",
+      taskId: "KB-006",
       flushSizeBytes: 1024,
       flushIntervalMs: 500,
     });
@@ -147,12 +147,12 @@ describe("AgentLogger", () => {
     logger.onText("remaining");
     await logger.flush();
 
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-006", "remaining", "text");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-006", "remaining", "text");
   });
 
   it("flush() is safe to call when buffer is empty", async () => {
     const store = createMockStore();
-    const logger = new AgentLogger({ store, taskId: "HAI-007" });
+    const logger = new AgentLogger({ store, taskId: "KB-007" });
 
     await logger.flush();
     expect(store.appendAgentLog).not.toHaveBeenCalled();
@@ -164,23 +164,23 @@ describe("AgentLogger", () => {
     const onAgentTool = vi.fn();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-008",
+      taskId: "KB-008",
       onAgentText,
       onAgentTool,
     });
 
     logger.onText("delta");
-    expect(onAgentText).toHaveBeenCalledWith("HAI-008", "delta");
+    expect(onAgentText).toHaveBeenCalledWith("KB-008", "delta");
 
     logger.onToolStart("Bash", { command: "echo hi" });
-    expect(onAgentTool).toHaveBeenCalledWith("HAI-008", "Bash");
+    expect(onAgentTool).toHaveBeenCalledWith("KB-008", "Bash");
   });
 
   it("does not schedule multiple timers for consecutive small writes", async () => {
     const store = createMockStore();
     const logger = new AgentLogger({
       store,
-      taskId: "HAI-009",
+      taskId: "KB-009",
       flushSizeBytes: 1024,
       flushIntervalMs: 500,
     });
@@ -193,6 +193,6 @@ describe("AgentLogger", () => {
 
     // All text should be flushed in a single call
     expect(store.appendAgentLog).toHaveBeenCalledTimes(1);
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-009", "abc", "text");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-009", "abc", "text");
   });
 });

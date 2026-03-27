@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Column } from "@hai/core";
+import type { Column } from "@kb/core";
 
 /**
  * Tests for the agent-active class logic in TaskCard.
@@ -139,11 +139,11 @@ describe("TaskCard dependency tooltip", () => {
   }
 
   it("returns comma-separated dependency IDs when dependencies are present", () => {
-    expect(computeDepTooltip(["HAI-001", "HAI-042"])).toBe("HAI-001, HAI-042");
+    expect(computeDepTooltip(["KB-001", "KB-042"])).toBe("KB-001, KB-042");
   });
 
   it("returns single dependency ID when only one dependency", () => {
-    expect(computeDepTooltip(["HAI-010"])).toBe("HAI-010");
+    expect(computeDepTooltip(["KB-010"])).toBe("KB-010");
   });
 
   it("returns undefined when dependencies array is empty", () => {
@@ -151,12 +151,12 @@ describe("TaskCard dependency tooltip", () => {
   });
 
   it("handles many dependencies", () => {
-    const deps = ["HAI-001", "HAI-002", "HAI-003", "HAI-004"];
-    expect(computeDepTooltip(deps)).toBe("HAI-001, HAI-002, HAI-003, HAI-004");
+    const deps = ["KB-001", "KB-002", "KB-003", "KB-004"];
+    expect(computeDepTooltip(deps)).toBe("KB-001, KB-002, KB-003, KB-004");
   });
 
   it("data-tooltip attribute contains dependency IDs as a readable string", () => {
-    const deps = ["HAI-005", "HAI-012"];
+    const deps = ["KB-005", "KB-012"];
     const tooltip = computeDepTooltip(deps);
     expect(tooltip).toBeDefined();
     // Each dependency ID should appear in the tooltip
@@ -179,7 +179,7 @@ describe("TaskCard file-scope overlap badge logic", () => {
   }
 
   it("shows scope badge when blockedBy is set", () => {
-    expect(shouldShowScopeBadge("HAI-003")).toBe(true);
+    expect(shouldShowScopeBadge("KB-003")).toBe(true);
   });
 
   it("does NOT show scope badge when blockedBy is undefined", () => {
@@ -187,7 +187,7 @@ describe("TaskCard file-scope overlap badge logic", () => {
   });
 
   it("shows card-meta when blockedBy is set even with no deps or queued status", () => {
-    expect(shouldShowCardMeta({ blockedBy: "HAI-003" })).toBe(true);
+    expect(shouldShowCardMeta({ blockedBy: "KB-003" })).toBe(true);
   });
 
   it("does NOT show card-meta when no deps, not queued, and no blockedBy", () => {
@@ -200,7 +200,7 @@ describe("TaskCard file-scope overlap badge logic", () => {
   }
 
   it("generates correct tooltip text", () => {
-    expect(computeScopeTooltip("HAI-005")).toBe("Blocked by HAI-005 (file overlap)");
+    expect(computeScopeTooltip("KB-005")).toBe("Blocked by KB-005 (file overlap)");
   });
 });
 

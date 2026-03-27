@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Link } from "lucide-react";
-import type { Task, TaskCreateInput } from "@hai/core";
+import type { Task, TaskCreateInput } from "@kb/core";
 import type { ToastType } from "../hooks/useToast";
 import { uploadAttachment } from "../api";
 

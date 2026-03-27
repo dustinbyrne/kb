@@ -1,4 +1,4 @@
-import type { Task, TaskDetail, TaskAttachment, TaskCreateInput, AgentLogEntry, Column, MergeResult, Settings } from "@hai/core";
+import type { Task, TaskDetail, TaskAttachment, TaskCreateInput, AgentLogEntry, Column, MergeResult, Settings } from "@kb/core";
 
 async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {

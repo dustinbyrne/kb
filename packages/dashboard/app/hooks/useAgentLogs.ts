@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { AgentLogEntry } from "@hai/core";
+import type { AgentLogEntry } from "@kb/core";
 import { fetchAgentLogs } from "../api";
 
 /**

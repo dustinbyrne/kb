@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Task, TaskDetail, TaskAttachment, Column, MergeResult } from "@hai/core";
-import { COLUMN_LABELS, VALID_TRANSITIONS } from "@hai/core";
+import type { Task, TaskDetail, TaskAttachment, Column, MergeResult } from "@kb/core";
+import { COLUMN_LABELS, VALID_TRANSITIONS } from "@kb/core";
 import { uploadAttachment, deleteAttachment, updateTask, pauseTask, unpauseTask } from "../api";
 import type { ToastType } from "../hooks/useToast";
 import { useAgentLogs } from "../hooks/useAgentLogs";

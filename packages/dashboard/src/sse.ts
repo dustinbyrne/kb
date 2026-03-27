@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { TaskStore } from "@hai/core";
+import type { TaskStore } from "@kb/core";
 
 export function createSSE(store: TaskStore) {
   return (_req: Request, res: Response) => {

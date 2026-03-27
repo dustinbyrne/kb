@@ -8,7 +8,7 @@ describe("generateWorktreeName", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "hai-wt-test-"));
+    tempDir = mkdtempSync(join(tmpdir(), "kb-wt-test-"));
   });
 
   afterEach(() => {

@@ -15,7 +15,7 @@ vi.mock("../../api", () => ({
 function renderCard() {
   const props = {
     tasks: [],
-    onSubmit: vi.fn().mockResolvedValue({ id: "HAI-001" }),
+    onSubmit: vi.fn().mockResolvedValue({ id: "KB-001" }),
     onCancel: vi.fn(),
     addToast: vi.fn(),
   };

@@ -20,13 +20,13 @@ importers:
 
   packages/cli:
     dependencies:
-      '@hai/core':
+      '@kb/core':
         specifier: workspace:*
         version: link:../core
-      '@hai/dashboard':
+      '@kb/dashboard':
         specifier: workspace:*
         version: link:../dashboard
-      '@hai/engine':
+      '@kb/engine':
         specifier: workspace:*
         version: link:../engine
       '@mariozechner/pi-coding-agent':
@@ -60,7 +60,7 @@ importers:
 
   packages/dashboard:
     dependencies:
-      '@hai/core':
+      '@kb/core':
         specifier: workspace:*
         version: link:../core
       '@types/multer':
@@ -124,7 +124,7 @@ importers:
 
   packages/engine:
     dependencies:
-      '@hai/core':
+      '@kb/core':
         specifier: workspace:*
         version: link:../core
       '@mariozechner/pi-ai':

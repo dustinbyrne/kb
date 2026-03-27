@@ -1,9 +1,9 @@
 {
-  "name": "@dustinbyrne/hai",
+  "name": "@dustinbyrne/kb",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "hai": "./dist/bin.js"
+    "kb": "./dist/bin.js"
   },
   "files": [
     "dist",
@@ -18,9 +18,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@hai/core": "workspace:*",
-    "@hai/dashboard": "workspace:*",
-    "@hai/engine": "workspace:*",
+    "@kb/core": "workspace:*",
+    "@kb/dashboard": "workspace:*",
+    "@kb/engine": "workspace:*",
     "@mariozechner/pi-coding-agent": "^0.62.0"
   },
   "devDependencies": {

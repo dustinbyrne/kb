@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { AgentLogViewer } from "../AgentLogViewer";
-import type { AgentLogEntry } from "@hai/core";
+import type { AgentLogEntry } from "@kb/core";
 
 function makeEntry(overrides: Partial<AgentLogEntry> = {}): AgentLogEntry {
   return {
     timestamp: "2026-01-01T00:00:00Z",
-    taskId: "HAI-001",
+    taskId: "KB-001",
     text: "Hello world",
     type: "text",
     ...overrides,

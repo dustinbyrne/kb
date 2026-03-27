@@ -1,5 +1,5 @@
-import type { Task, TaskDetail, TaskCreateInput, Column as ColumnType } from "@hai/core";
-import { COLUMNS } from "@hai/core";
+import type { Task, TaskDetail, TaskCreateInput, Column as ColumnType } from "@kb/core";
+import { COLUMNS } from "@kb/core";
 import { Column } from "./Column";
 import type { ToastType } from "../hooks/useToast";
 

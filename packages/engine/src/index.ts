@@ -5,6 +5,6 @@ export { TaskExecutor, type TaskExecutorOptions } from "./executor.js";
 export { Scheduler, type SchedulerOptions } from "./scheduler.js";
 export { aiMergeTask, type MergerOptions } from "./merger.js";
 export { reviewStep, type ReviewType, type ReviewVerdict, type ReviewResult, type ReviewOptions } from "./reviewer.js";
-export { createHaiAgent, type AgentOptions, type AgentResult } from "./pi.js";
+export { createKbAgent, type AgentOptions, type AgentResult } from "./pi.js";
 export { WorktreePool } from "./worktree-pool.js";
 export { createLogger, type Logger } from "./logger.js";

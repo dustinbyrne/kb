@@ -1,22 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentSemaphore } from "./concurrency.js";
 
-// Mock createHaiAgent before importing TriageProcessor
+// Mock createKbAgent before importing TriageProcessor
 vi.mock("./pi.js", () => ({
-  createHaiAgent: vi.fn(),
+  createKbAgent: vi.fn(),
 }));
 
 import { TriageProcessor, buildSpecificationPrompt, type AttachmentContent } from "./triage.js";
-import { createHaiAgent } from "./pi.js";
-import type { TaskDetail } from "@hai/core";
+import { createKbAgent } from "./pi.js";
+import type { TaskDetail } from "@kb/core";
 
-const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
+const mockedCreateHaiAgent = vi.mocked(createKbAgent);
 
 function createMockStore(tasks: any[] = []) {
   return {
     listTasks: vi.fn().mockResolvedValue(tasks),
     getTask: vi.fn().mockResolvedValue({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test task",
       column: "triage",
@@ -43,7 +43,7 @@ function createMockStore(tasks: any[] = []) {
 
 function createMockTaskDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
   return {
-    id: "HAI-001",
+    id: "KB-001",
     title: "Test Task",
     description: "A test task",
     column: "triage",
@@ -79,7 +79,7 @@ describe("TriageProcessor with semaphore", () => {
     const triage = new TriageProcessor(store, "/tmp/test", { semaphore: sem });
 
     await triage.specifyTask({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "triage",
@@ -111,7 +111,7 @@ describe("TriageProcessor with semaphore", () => {
     });
 
     await triage.specifyTask({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "triage",
@@ -163,9 +163,9 @@ describe("TriageProcessor with semaphore", () => {
     });
 
     await Promise.all([
-      triage.specifyTask(task("HAI-001")),
-      triage.specifyTask(task("HAI-002")),
-      triage.specifyTask(task("HAI-003")),
+      triage.specifyTask(task("KB-001")),
+      triage.specifyTask(task("KB-002")),
+      triage.specifyTask(task("KB-003")),
     ]);
 
     expect(maxConcurrent).toBe(1);
@@ -223,7 +223,7 @@ describe("TriageProcessor paused tasks", () => {
 
   it("skips paused triage tasks in poll()", async () => {
     const pausedTask = {
-      id: "HAI-001",
+      id: "KB-001",
       title: "Paused",
       description: "Paused task",
       column: "triage" as const,
@@ -255,7 +255,7 @@ describe("TriageProcessor paused tasks", () => {
 
   it("processes non-paused triage tasks normally", async () => {
     const normalTask = {
-      id: "HAI-002",
+      id: "KB-002",
       title: "Normal",
       description: "Normal task",
       column: "triage" as const,
@@ -280,14 +280,14 @@ describe("TriageProcessor paused tasks", () => {
     await (triage as any).poll();
 
     // Agent should be created for a non-paused task
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-002", { status: "specifying" });
+    expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "specifying" });
   });
 });
 
 describe("buildSpecificationPrompt", () => {
   it("includes project commands when testCommand is set", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", {
       maxConcurrent: 2,
       maxWorktrees: 4,
       pollIntervalMs: 15000,
@@ -303,7 +303,7 @@ describe("buildSpecificationPrompt", () => {
 
   it("includes project commands when buildCommand is set", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", {
       maxConcurrent: 2,
       maxWorktrees: 4,
       pollIntervalMs: 15000,
@@ -318,7 +318,7 @@ describe("buildSpecificationPrompt", () => {
 
   it("includes both commands when both are set", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", {
       maxConcurrent: 2,
       maxWorktrees: 4,
       pollIntervalMs: 15000,
@@ -334,7 +334,7 @@ describe("buildSpecificationPrompt", () => {
 
   it("omits project commands section when neither command is set", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", {
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", {
       maxConcurrent: 2,
       maxWorktrees: 4,
       pollIntervalMs: 15000,
@@ -347,7 +347,7 @@ describe("buildSpecificationPrompt", () => {
 
   it("omits project commands section when settings is undefined", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md");
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md");
 
     expect(result).not.toContain("## Project Commands");
   });
@@ -357,7 +357,7 @@ describe("buildSpecificationPrompt", () => {
     const attachmentContents: AttachmentContent[] = [
       { originalName: "error.log", mimeType: "text/plain", text: "ERROR: something broke\nStack trace here" },
     ];
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", undefined, attachmentContents);
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", undefined, attachmentContents);
 
     expect(result).toContain("## Attachments");
     expect(result).toContain("### error.log (text/plain)");
@@ -369,7 +369,7 @@ describe("buildSpecificationPrompt", () => {
     const attachmentContents: AttachmentContent[] = [
       { originalName: "screenshot.png", mimeType: "image/png", text: null },
     ];
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", undefined, attachmentContents);
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", undefined, attachmentContents);
 
     expect(result).toContain("## Attachments");
     expect(result).toContain("**screenshot.png** (image/png)");
@@ -382,7 +382,7 @@ describe("buildSpecificationPrompt", () => {
       { originalName: "screenshot.png", mimeType: "image/png", text: null },
       { originalName: "config.json", mimeType: "application/json", text: '{"key": "value"}' },
     ];
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", undefined, attachmentContents);
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", undefined, attachmentContents);
 
     expect(result).toContain("**screenshot.png** (image/png)");
     expect(result).toContain("### config.json (application/json)");
@@ -391,14 +391,14 @@ describe("buildSpecificationPrompt", () => {
 
   it("omits attachments section when no attachments", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md", undefined, []);
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md", undefined, []);
 
     expect(result).not.toContain("## Attachments");
   });
 
   it("omits attachments section when attachmentContents is undefined", () => {
     const task = createMockTaskDetail();
-    const result = buildSpecificationPrompt(task, ".hai/tasks/HAI-001/PROMPT.md");
+    const result = buildSpecificationPrompt(task, ".kb/tasks/KB-001/PROMPT.md");
 
     expect(result).not.toContain("## Attachments");
   });
@@ -412,7 +412,7 @@ function createEnoentError(path = "/fake/path"): NodeJS.ErrnoException {
 }
 
 const dummyTask = {
-  id: "HAI-099",
+  id: "KB-099",
   title: "Deleted task",
   description: "This task was deleted",
   column: "triage" as const,
@@ -485,7 +485,7 @@ describe("TriageProcessor deleted task handling", () => {
     await triage.specifyTask(dummyTask);
 
     // If processing Set was cleaned up, updateTask will be called again for "specifying"
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-099", { status: "specifying" });
+    expect(store.updateTask).toHaveBeenCalledWith("KB-099", { status: "specifying" });
     expect(mockedCreateHaiAgent).toHaveBeenCalled();
   });
 });
@@ -515,7 +515,7 @@ describe("TriageProcessor agent log persistence", () => {
 
     const triage = new TriageProcessor(store, "/tmp/test", {});
     await triage.specifyTask({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "triage",
@@ -528,7 +528,7 @@ describe("TriageProcessor agent log persistence", () => {
     });
 
     // Text buffer is flushed in finally block
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-001", "Hello world", "text");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-001", "Hello world", "text");
   });
 
   it("logs tool invocations to store.appendAgentLog", async () => {
@@ -549,7 +549,7 @@ describe("TriageProcessor agent log persistence", () => {
 
     const triage = new TriageProcessor(store, "/tmp/test", {});
     await triage.specifyTask({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "triage",
@@ -561,7 +561,7 @@ describe("TriageProcessor agent log persistence", () => {
       updatedAt: new Date().toISOString(),
     });
 
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-001", "Read", "tool", "foo.ts");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-001", "Read", "tool", "foo.ts");
   });
 
   it("still fires onAgentText callback alongside logging", async () => {
@@ -583,7 +583,7 @@ describe("TriageProcessor agent log persistence", () => {
 
     const triage = new TriageProcessor(store, "/tmp/test", { onAgentText });
     await triage.specifyTask({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "triage",
@@ -595,7 +595,7 @@ describe("TriageProcessor agent log persistence", () => {
       updatedAt: new Date().toISOString(),
     });
 
-    expect(onAgentText).toHaveBeenCalledWith("HAI-001", "hi");
-    expect(store.appendAgentLog).toHaveBeenCalledWith("HAI-001", "hi", "text");
+    expect(onAgentText).toHaveBeenCalledWith("KB-001", "hi");
+    expect(store.appendAgentLog).toHaveBeenCalledWith("KB-001", "hi", "text");
   });
 });

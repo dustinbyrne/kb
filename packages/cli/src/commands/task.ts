@@ -1,5 +1,5 @@
-import { TaskStore, COLUMNS, COLUMN_LABELS, type Column, type MergeResult, type StepStatus } from "@hai/core";
-import { aiMergeTask } from "@hai/engine";
+import { TaskStore, COLUMNS, COLUMN_LABELS, type Column, type MergeResult, type StepStatus } from "@kb/core";
+import { aiMergeTask } from "@kb/engine";
 import { createInterface } from "node:readline/promises";
 
 const STEP_STATUSES: StepStatus[] = ["pending", "in-progress", "done", "skipped"];
@@ -34,7 +34,7 @@ export async function runTaskCreate(descriptionArg?: string, attachFiles?: strin
   console.log();
   console.log(`  ✓ Created ${task.id}: ${label}`);
   console.log(`    Column: triage`);
-  console.log(`    Path:   .hai/tasks/${task.id}/`);
+  console.log(`    Path:   .kb/tasks/${task.id}/`);
 
   if (attachFiles && attachFiles.length > 0) {
     const { readFile } = await import("node:fs/promises");
@@ -73,7 +73,7 @@ export async function runTaskList() {
   const tasks = await store.listTasks();
 
   if (tasks.length === 0) {
-    console.log("\n  No tasks yet. Create one with: hai task create\n");
+    console.log("\n  No tasks yet. Create one with: kb task create\n");
     return;
   }
 
@@ -246,7 +246,7 @@ export async function runTaskAttach(id: string, filePath: string) {
   console.log();
   console.log(`  ✓ Attached to ${id}: ${attachment.originalName}`);
   console.log(`    File: ${attachment.filename} (${sizeKB} KB)`);
-  console.log(`    Path: .hai/tasks/${id}/attachments/${attachment.filename}`);
+  console.log(`    Path: .kb/tasks/${id}/attachments/${attachment.filename}`);
   console.log();
 }
 

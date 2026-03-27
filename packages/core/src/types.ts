@@ -94,12 +94,12 @@ export interface Settings {
    *  of being deleted. New tasks acquire a warm worktree from the pool,
    *  preserving build caches (node_modules, target/, dist/). Default: false. */
   recycleWorktrees?: boolean;
-  /** Prefix for generated task IDs (e.g. `"HAI"` produces `HAI-001`).
-   *  Defaults to `"HAI"`. Only affects new tasks — existing tasks retain
+  /** Prefix for generated task IDs (e.g. `"KB"` produces `KB-001`).
+   *  Defaults to `"KB"`. Only affects new tasks — existing tasks retain
    *  their original IDs. */
   taskPrefix?: string;
   /** When true, merge commit messages include the task ID as the conventional
-   *  commit scope (e.g. `feat(HAI-001): ...`). When false, the scope is
+   *  commit scope (e.g. `feat(KB-001): ...`). When false, the scope is
    *  omitted (e.g. `feat: ...`). Default: true. */
   includeTaskIdInCommit?: boolean;
   /** Default AI model provider name (e.g. `"anthropic"`, `"openai"`).

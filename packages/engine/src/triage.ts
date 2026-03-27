@@ -1,13 +1,13 @@
-import type { TaskStore, Task, TaskDetail, TaskAttachment, Settings } from "@hai/core";
+import type { TaskStore, Task, TaskDetail, TaskAttachment, Settings } from "@kb/core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { Type, type Static } from "@mariozechner/pi-ai";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
-import { createHaiAgent } from "./pi.js";
+import { createKbAgent } from "./pi.js";
 import type { AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
 import { triageLog } from "./logger.js";
 
-const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "hai", an AI-orchestrated task board.
+const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "kb", an AI-orchestrated task board.
 
 Your job: take a rough task description and produce a fully specified PROMPT.md that another AI agent can execute autonomously in a fresh context with zero memory of this conversation.
 
@@ -81,7 +81,7 @@ Follow this structure exactly:
 ### Step {N}: Documentation & Delivery
 
 - [ ] Update relevant documentation
-- [ ] Out-of-scope findings created as new tasks via \`hai task create\`
+- [ ] Out-of-scope findings created as new tasks via \`kb task create\`
 
 ## Documentation Requirements
 
@@ -250,7 +250,7 @@ export class TriageProcessor {
       await this.store.updateTask(task.id, { status: "specifying" });
       const detail = await this.store.getTask(task.id);
       const settings = await this.store.getSettings();
-      const promptPath = `.hai/tasks/${task.id}/PROMPT.md`;
+      const promptPath = `.kb/tasks/${task.id}/PROMPT.md`;
 
       const agentWork = async () => {
         const agentLogger = new AgentLogger({
@@ -264,7 +264,7 @@ export class TriageProcessor {
           },
         });
 
-        const { session } = await createHaiAgent({
+        const { session } = await createKbAgent({
           cwd: this.rootDir,
           systemPrompt: TRIAGE_SYSTEM_PROMPT,
           tools: "coding",
@@ -333,7 +333,7 @@ export class TriageProcessor {
     const store = this.store;
 
     const taskGetParams = Type.Object({
-      id: Type.String({ description: "Task ID (e.g. HAI-001)" }),
+      id: Type.String({ description: "Task ID (e.g. KB-001)" }),
     });
 
     const taskList: ToolDefinition = {
@@ -431,7 +431,7 @@ export async function readAttachmentContents(
   const { join } = await import("node:path");
 
   for (const att of attachments) {
-    const filePath = join(rootDir, ".hai", "tasks", taskId, "attachments", att.filename);
+    const filePath = join(rootDir, ".kb", "tasks", taskId, "attachments", att.filename);
 
     try {
       if (IMAGE_MIME_TYPES.has(att.mimeType)) {

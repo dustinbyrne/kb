@@ -82,7 +82,7 @@ export class WorktreePool {
    * 3. `git checkout -B <branchName> main` — create/reset branch from main
    *
    * @param worktreePath — Absolute path to the recycled worktree
-   * @param branchName — Branch name for the new task (e.g., `hai/hai-042`)
+   * @param branchName — Branch name for the new task (e.g., `kb/kb-042`)
    */
   prepareForTask(worktreePath: string, branchName: string): void {
     // Clean tracked modifications

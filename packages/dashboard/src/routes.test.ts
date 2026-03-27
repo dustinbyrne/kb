@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import http from "node:http";
 import { createApiRoutes } from "./routes.js";
-import type { TaskStore, TaskAttachment } from "@hai/core";
-import type { TaskDetail } from "@hai/core";
+import type { TaskStore, TaskAttachment } from "@kb/core";
+import type { TaskDetail } from "@kb/core";
 import type { AuthStorageLike, ModelRegistryLike } from "./routes.js";
 
 function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
@@ -24,7 +24,7 @@ function createMockStore(overrides: Partial<TaskStore> = {}): TaskStore {
 }
 
 const FAKE_TASK_DETAIL: TaskDetail = {
-  id: "HAI-001",
+  id: "KB-001",
   description: "Test task",
   column: "in-progress",
   dependencies: [],
@@ -33,7 +33,7 @@ const FAKE_TASK_DETAIL: TaskDetail = {
   log: [],
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
-  prompt: "# HAI-001\n\nTest task",
+  prompt: "# KB-001\n\nTest task",
 };
 
 /** Helper: send GET and return { status, body } */
@@ -117,11 +117,11 @@ describe("GET /tasks/:id", () => {
   it("returns task detail on success", async () => {
     (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(FAKE_TASK_DETAIL);
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-001");
+    const res = await GET(buildApp(), "/api/tasks/KB-001");
 
     expect(res.status).toBe(200);
-    expect(res.body.id).toBe("HAI-001");
-    expect(res.body.prompt).toBe("# HAI-001\n\nTest task");
+    expect(res.body.id).toBe("KB-001");
+    expect(res.body.prompt).toBe("# KB-001\n\nTest task");
   });
 
   it("returns 404 when task genuinely does not exist (ENOENT)", async () => {
@@ -129,7 +129,7 @@ describe("GET /tasks/:id", () => {
     err.code = "ENOENT";
     (store.getTask as ReturnType<typeof vi.fn>).mockRejectedValue(err);
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-999");
+    const res = await GET(buildApp(), "/api/tasks/KB-999");
 
     expect(res.status).toBe(404);
     expect(res.body.error).toContain("not found");
@@ -139,7 +139,7 @@ describe("GET /tasks/:id", () => {
     const err = new Error("Unexpected end of JSON input");
     (store.getTask as ReturnType<typeof vi.fn>).mockRejectedValue(err);
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-001");
+    const res = await GET(buildApp(), "/api/tasks/KB-001");
 
     expect(res.status).toBe(500);
     expect(res.body.error).toContain("Unexpected end of JSON input");
@@ -167,20 +167,20 @@ describe("POST /tasks/:id/retry", () => {
     (store.updateTask as ReturnType<typeof vi.fn>).mockResolvedValue(failedTask);
     (store.moveTask as ReturnType<typeof vi.fn>).mockResolvedValue(movedTask);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/retry", JSON.stringify({}), {
       "Content-Type": "application/json",
     });
 
     expect(res.status).toBe(200);
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", { status: undefined });
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "todo");
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: undefined });
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "todo");
   });
 
   it("returns 400 when task is not in failed state", async () => {
     const activeTask = { ...FAKE_TASK_DETAIL, status: "executing" };
     (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(activeTask);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/retry", JSON.stringify({}), {
       "Content-Type": "application/json",
     });
 
@@ -192,7 +192,7 @@ describe("POST /tasks/:id/retry", () => {
     const doneTask = { ...FAKE_TASK_DETAIL, column: "done", status: "failed" };
     (store.getTask as ReturnType<typeof vi.fn>).mockResolvedValue(doneTask);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/retry", JSON.stringify({}), {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/retry", JSON.stringify({}), {
       "Content-Type": "application/json",
     });
 
@@ -216,32 +216,32 @@ describe("PATCH /tasks/:id", () => {
   }
 
   it("forwards dependencies to store.updateTask", async () => {
-    const updatedTask = { ...FAKE_TASK_DETAIL, dependencies: ["HAI-002"] };
+    const updatedTask = { ...FAKE_TASK_DETAIL, dependencies: ["KB-002"] };
     (store.updateTask as ReturnType<typeof vi.fn>).mockResolvedValue(updatedTask);
 
-    const res = await REQUEST(buildApp(), "PATCH", "/api/tasks/HAI-001", JSON.stringify({ dependencies: ["HAI-002"] }), {
+    const res = await REQUEST(buildApp(), "PATCH", "/api/tasks/KB-001", JSON.stringify({ dependencies: ["KB-002"] }), {
       "Content-Type": "application/json",
     });
 
     expect(res.status).toBe(200);
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", {
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", {
       title: undefined,
       description: undefined,
       prompt: undefined,
-      dependencies: ["HAI-002"],
+      dependencies: ["KB-002"],
     });
-    expect(res.body.dependencies).toEqual(["HAI-002"]);
+    expect(res.body.dependencies).toEqual(["KB-002"]);
   });
 
   it("forwards title and description without dependencies", async () => {
     (store.updateTask as ReturnType<typeof vi.fn>).mockResolvedValue({ ...FAKE_TASK_DETAIL, title: "New" });
 
-    const res = await REQUEST(buildApp(), "PATCH", "/api/tasks/HAI-001", JSON.stringify({ title: "New" }), {
+    const res = await REQUEST(buildApp(), "PATCH", "/api/tasks/KB-001", JSON.stringify({ title: "New" }), {
       "Content-Type": "application/json",
     });
 
     expect(res.status).toBe(200);
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", {
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", {
       title: "New",
       description: undefined,
       prompt: undefined,
@@ -280,14 +280,14 @@ describe("Attachment routes", () => {
     const content = Buffer.from("fake png content");
     const { body, boundary } = buildMultipart("file", "screenshot.png", "image/png", content);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/attachments", body, {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     });
 
     expect(res.status).toBe(201);
     expect(res.body.filename).toBe("1234-screenshot.png");
     expect((store.addAttachment as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(
-      "HAI-001",
+      "KB-001",
       "screenshot.png",
       expect.any(Buffer),
       "image/png",
@@ -302,7 +302,7 @@ describe("Attachment routes", () => {
     const content = Buffer.from("not an image");
     const { body, boundary } = buildMultipart("file", "file.txt", "text/plain", content);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/attachments", body, {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     });
 
@@ -318,7 +318,7 @@ describe("Attachment routes", () => {
     const content = Buffer.from("small but store rejects");
     const { body, boundary } = buildMultipart("file", "big.png", "image/png", content);
 
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/attachments", body, {
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/attachments", body, {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     });
 
@@ -327,10 +327,10 @@ describe("Attachment routes", () => {
   });
 
   it("DELETE /tasks/:id/attachments/:filename — deletes attachment", async () => {
-    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/HAI-001/attachments/1234-screenshot.png");
+    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/KB-001/attachments/1234-screenshot.png");
 
     expect(res.status).toBe(200);
-    expect((store.deleteAttachment as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("HAI-001", "1234-screenshot.png");
+    expect((store.deleteAttachment as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith("KB-001", "1234-screenshot.png");
   });
 
   it("DELETE /tasks/:id/attachments/:filename — returns 404 for missing", async () => {
@@ -338,29 +338,29 @@ describe("Attachment routes", () => {
     err.code = "ENOENT";
     (store.deleteAttachment as ReturnType<typeof vi.fn>).mockRejectedValue(err);
 
-    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/HAI-001/attachments/nope.png");
+    const res = await REQUEST(buildApp(), "DELETE", "/api/tasks/KB-001/attachments/nope.png");
 
     expect(res.status).toBe(404);
   });
 
   it("GET /tasks/:id/logs — returns agent logs", async () => {
     const fakeLogs = [
-      { timestamp: "2026-01-01T00:00:00Z", taskId: "HAI-001", text: "Hello", type: "text" },
-      { timestamp: "2026-01-01T00:00:01Z", taskId: "HAI-001", text: "Read", type: "tool" },
+      { timestamp: "2026-01-01T00:00:00Z", taskId: "KB-001", text: "Hello", type: "text" },
+      { timestamp: "2026-01-01T00:00:01Z", taskId: "KB-001", text: "Read", type: "tool" },
     ];
     (store.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue(fakeLogs);
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+    const res = await GET(buildApp(), "/api/tasks/KB-001/logs");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual(fakeLogs);
-    expect(store.getAgentLogs).toHaveBeenCalledWith("HAI-001");
+    expect(store.getAgentLogs).toHaveBeenCalledWith("KB-001");
   });
 
   it("GET /tasks/:id/logs — returns empty array when no logs", async () => {
     (store.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+    const res = await GET(buildApp(), "/api/tasks/KB-001/logs");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
@@ -369,7 +369,7 @@ describe("Attachment routes", () => {
   it("GET /tasks/:id/logs — returns 500 on store error", async () => {
     (store.getAgentLogs as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("disk error"));
 
-    const res = await GET(buildApp(), "/api/tasks/HAI-001/logs");
+    const res = await GET(buildApp(), "/api/tasks/KB-001/logs");
 
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("disk error");
@@ -631,27 +631,27 @@ describe("Pause/Unpause endpoints", () => {
 
   beforeEach(() => {
     store = createMockStore({
-      pauseTask: vi.fn().mockResolvedValue({ id: "HAI-001", paused: true }),
+      pauseTask: vi.fn().mockResolvedValue({ id: "KB-001", paused: true }),
     });
   });
 
   it("POST /tasks/:id/pause — pauses a task", async () => {
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/pause");
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/pause");
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ id: "HAI-001", paused: true });
-    expect(store.pauseTask).toHaveBeenCalledWith("HAI-001", true);
+    expect(res.body).toEqual({ id: "KB-001", paused: true });
+    expect(store.pauseTask).toHaveBeenCalledWith("KB-001", true);
   });
 
   it("POST /tasks/:id/unpause — unpauses a task", async () => {
-    (store.pauseTask as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "HAI-001" });
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/unpause");
+    (store.pauseTask as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "KB-001" });
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/unpause");
     expect(res.status).toBe(200);
-    expect(store.pauseTask).toHaveBeenCalledWith("HAI-001", false);
+    expect(store.pauseTask).toHaveBeenCalledWith("KB-001", false);
   });
 
   it("POST /tasks/:id/pause — returns 500 on error", async () => {
     (store.pauseTask as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("not found"));
-    const res = await REQUEST(buildApp(), "POST", "/api/tasks/HAI-001/pause");
+    const res = await REQUEST(buildApp(), "POST", "/api/tasks/KB-001/pause");
     expect(res.status).toBe(500);
     expect(res.body.error).toBe("not found");
   });

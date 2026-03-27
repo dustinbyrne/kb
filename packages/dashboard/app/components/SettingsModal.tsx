@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { Settings } from "@hai/core";
+import type { Settings } from "@kb/core";
 import { fetchSettings, updateSettings, fetchAuthStatus, loginProvider, logoutProvider, fetchModels } from "../api";
 import type { AuthProvider, ModelInfo } from "../api";
 import type { ToastType } from "../hooks/useToast";
@@ -185,7 +185,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               <input
                 id="taskPrefix"
                 type="text"
-                placeholder="HAI"
+                placeholder="KB"
                 value={form.taskPrefix || ""}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -198,7 +198,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 }}
               />
               {prefixError && <small className="field-error">{prefixError}</small>}
-              {!prefixError && <small>Prefix for new task IDs (e.g. HAI, PROJ)</small>}
+              {!prefixError && <small>Prefix for new task IDs (e.g. KB, PROJ)</small>}
             </div>
           </>
         );
@@ -412,7 +412,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 />
                 Include task ID in commit scope
               </label>
-              <small>When disabled, merge commit messages omit the task ID from the scope (e.g. <code>feat: ...</code> instead of <code>feat(HAI-001): ...</code>)</small>
+              <small>When disabled, merge commit messages omit the task ID from the scope (e.g. <code>feat: ...</code> instead of <code>feat(KB-001): ...</code>)</small>
             </div>
           </>
         );

@@ -1,8 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
 import { createReadStream } from "node:fs";
-import type { TaskStore, Column, MergeResult } from "@hai/core";
-import { COLUMNS } from "@hai/core";
+import type { TaskStore, Column, MergeResult } from "@kb/core";
+import { COLUMNS } from "@kb/core";
 import type { ServerOptions } from "./server.js";
 
 /**

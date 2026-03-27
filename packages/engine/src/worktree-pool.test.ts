@@ -120,7 +120,7 @@ describe("WorktreePool", () => {
 
   describe("prepareForTask", () => {
     it("cleans dirty working tree before checkout", () => {
-      pool.prepareForTask("/tmp/wt", "hai/hai-042");
+      pool.prepareForTask("/tmp/wt", "kb/kb-042");
 
       const calls = mockedExecSync.mock.calls.map((c) => c[0]);
       expect(calls).toContain("git checkout -- .");
@@ -128,18 +128,18 @@ describe("WorktreePool", () => {
     });
 
     it("creates branch from main with force-reset", () => {
-      pool.prepareForTask("/tmp/wt", "hai/hai-042");
+      pool.prepareForTask("/tmp/wt", "kb/kb-042");
 
       const checkoutCall = mockedExecSync.mock.calls.find(
         (c) => typeof c[0] === "string" && (c[0] as string).includes("checkout -B"),
       );
       expect(checkoutCall).toBeDefined();
-      expect(checkoutCall![0]).toBe('git checkout -B "hai/hai-042" main');
+      expect(checkoutCall![0]).toBe('git checkout -B "kb/kb-042" main');
       expect(checkoutCall![1]).toMatchObject({ cwd: "/tmp/wt" });
     });
 
     it("runs all commands in the correct worktree directory", () => {
-      pool.prepareForTask("/tmp/my-worktree", "hai/hai-099");
+      pool.prepareForTask("/tmp/my-worktree", "kb/kb-099");
 
       for (const call of mockedExecSync.mock.calls) {
         expect(call[1]).toMatchObject({ cwd: "/tmp/my-worktree" });
@@ -153,12 +153,12 @@ describe("WorktreePool", () => {
       });
 
       // Should not throw
-      expect(() => pool.prepareForTask("/tmp/wt", "hai/hai-001")).not.toThrow();
+      expect(() => pool.prepareForTask("/tmp/wt", "kb/kb-001")).not.toThrow();
 
       // Should still run clean and branch creation
       const calls = mockedExecSync.mock.calls.map((c) => c[0]);
       expect(calls).toContain("git clean -fd");
-      expect(calls).toContain('git checkout -B "hai/hai-001" main');
+      expect(calls).toContain('git checkout -B "kb/kb-001" main');
     });
   });
 });

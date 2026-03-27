@@ -1,4 +1,4 @@
-import type { TaskStore } from "@hai/core";
+import type { TaskStore } from "@kb/core";
 
 /** Default byte threshold before an automatic flush. */
 const FLUSH_SIZE_BYTES = 1024;
@@ -56,12 +56,12 @@ export interface AgentLoggerOptions {
  * detailed argument summaries via {@link summarizeToolArgs}.
  *
  * Produces `onText` and `onToolStart` callbacks compatible with
- * `createHaiAgent`'s `AgentOptions` interface.
+ * `createKbAgent`'s `AgentOptions` interface.
  *
  * @example
  * ```ts
  * const logger = new AgentLogger({ store, taskId, onAgentText, onAgentTool });
- * const { session } = await createHaiAgent({
+ * const { session } = await createKbAgent({
  *   cwd: worktreePath,
  *   onText: logger.onText,
  *   onToolStart: logger.onToolStart,

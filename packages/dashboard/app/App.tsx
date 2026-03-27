@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
-import type { TaskDetail, TaskCreateInput, Task } from "@hai/core";
+import type { TaskDetail, TaskCreateInput, Task } from "@kb/core";
 import { fetchConfig, fetchSettings, updateSettings } from "./api";
 import { Header } from "./components/Header";
 import { Board } from "./components/Board";

@@ -37,7 +37,7 @@ jobs:
         run: pnpm test
 
       - name: Build standalone binary
-        run: pnpm --filter hai build:exe
+        run: pnpm --filter @dustinbyrne/kb build:exe
 
       - name: Verify binary exists
-        run: test -f packages/cli/dist/hai
+        run: test -f packages/cli/dist/kb

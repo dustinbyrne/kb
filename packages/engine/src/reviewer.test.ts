@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("./pi.js", () => ({
-  createHaiAgent: vi.fn(),
+  createKbAgent: vi.fn(),
 }));
 
 import { reviewStep } from "./reviewer.js";
-import { createHaiAgent } from "./pi.js";
+import { createKbAgent } from "./pi.js";
 
-const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
+const mockedCreateHaiAgent = vi.mocked(createKbAgent);
 
 function createMockSession(reviewText: string) {
   return {
@@ -30,13 +30,13 @@ describe("reviewStep — model settings threading", () => {
     vi.clearAllMocks();
   });
 
-  it("passes defaultProvider and defaultModelId to createHaiAgent when provided", async () => {
+  it("passes defaultProvider and defaultModelId to createKbAgent when provided", async () => {
     mockedCreateHaiAgent.mockResolvedValue(
       createMockSession("### Verdict: APPROVE\n### Summary\nLooks good."),
     );
 
     await reviewStep(
-      "/tmp/worktree", "HAI-100", 1, "Test Step", "plan", "# prompt",
+      "/tmp/worktree", "KB-100", 1, "Test Step", "plan", "# prompt",
       undefined,
       {
         defaultProvider: "anthropic",
@@ -56,7 +56,7 @@ describe("reviewStep — model settings threading", () => {
     );
 
     await reviewStep(
-      "/tmp/worktree", "HAI-100", 1, "Test Step", "plan", "# prompt",
+      "/tmp/worktree", "KB-100", 1, "Test Step", "plan", "# prompt",
       undefined,
       {},
     );
@@ -73,7 +73,7 @@ describe("reviewStep — model settings threading", () => {
     );
 
     const result = await reviewStep(
-      "/tmp/worktree", "HAI-100", 1, "Test Step", "plan", "# prompt",
+      "/tmp/worktree", "KB-100", 1, "Test Step", "plan", "# prompt",
     );
 
     expect(result.verdict).toBe("APPROVE");

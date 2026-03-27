@@ -1,4 +1,4 @@
-import type { Task, TaskDetail } from "@hai/core";
+import type { Task, TaskDetail } from "@kb/core";
 import { ClipboardList, GitBranch } from "lucide-react";
 import { TaskCard } from "./TaskCard";
 import type { ToastType } from "../hooks/useToast";

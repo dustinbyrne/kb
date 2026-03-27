@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { SettingsModal } from "../SettingsModal";
-import type { Settings } from "@hai/core";
+import type { Settings } from "@kb/core";
 
 const defaultSettings: Settings = {
   maxConcurrent: 2,

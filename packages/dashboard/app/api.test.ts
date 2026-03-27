@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchTaskDetail, updateTask, fetchAuthStatus, loginProvider, logoutProvider, fetchModels } from "./api";
-import type { Task, TaskDetail } from "@hai/core";
+import type { Task, TaskDetail } from "@kb/core";
 
 const FAKE_DETAIL: TaskDetail = {
-  id: "HAI-001",
+  id: "KB-001",
   description: "Test",
   column: "in-progress",
   dependencies: [],
@@ -12,7 +12,7 @@ const FAKE_DETAIL: TaskDetail = {
   log: [],
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
-  prompt: "# HAI-001",
+  prompt: "# KB-001",
 };
 
 function mockFetchResponse(ok: boolean, body: unknown, status = ok ? 200 : 500) {
@@ -38,9 +38,9 @@ describe("fetchTaskDetail", () => {
   it("returns data on first success", async () => {
     globalThis.fetch = vi.fn().mockReturnValue(mockFetchResponse(true, FAKE_DETAIL));
 
-    const result = await fetchTaskDetail("HAI-001");
+    const result = await fetchTaskDetail("KB-001");
 
-    expect(result.id).toBe("HAI-001");
+    expect(result.id).toBe("KB-001");
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -49,9 +49,9 @@ describe("fetchTaskDetail", () => {
       .mockReturnValueOnce(mockFetchResponse(false, { error: "Transient error" }))
       .mockReturnValueOnce(mockFetchResponse(true, FAKE_DETAIL));
 
-    const result = await fetchTaskDetail("HAI-001");
+    const result = await fetchTaskDetail("KB-001");
 
-    expect(result.id).toBe("HAI-001");
+    expect(result.id).toBe("KB-001");
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -59,7 +59,7 @@ describe("fetchTaskDetail", () => {
     globalThis.fetch = vi.fn()
       .mockReturnValue(mockFetchResponse(false, { error: "Server error" }));
 
-    await expect(fetchTaskDetail("HAI-001")).rejects.toThrow("Server error");
+    await expect(fetchTaskDetail("KB-001")).rejects.toThrow("Server error");
     expect(globalThis.fetch).toHaveBeenCalledTimes(2); // initial + 1 retry
   });
 });
@@ -72,10 +72,10 @@ describe("updateTask", () => {
   });
 
   const FAKE_TASK: Task = {
-    id: "HAI-001",
+    id: "KB-001",
     description: "Test",
     column: "in-progress",
-    dependencies: ["HAI-002"],
+    dependencies: ["KB-002"],
     steps: [],
     currentStep: 0,
     log: [],
@@ -86,20 +86,20 @@ describe("updateTask", () => {
   it("sends PATCH with dependencies and returns updated task", async () => {
     globalThis.fetch = vi.fn().mockReturnValue(mockFetchResponse(true, FAKE_TASK));
 
-    const result = await updateTask("HAI-001", { dependencies: ["HAI-002"] });
+    const result = await updateTask("KB-001", { dependencies: ["KB-002"] });
 
-    expect(result.dependencies).toEqual(["HAI-002"]);
-    expect(globalThis.fetch).toHaveBeenCalledWith("/api/tasks/HAI-001", {
+    expect(result.dependencies).toEqual(["KB-002"]);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/tasks/KB-001", {
       headers: { "Content-Type": "application/json" },
       method: "PATCH",
-      body: JSON.stringify({ dependencies: ["HAI-002"] }),
+      body: JSON.stringify({ dependencies: ["KB-002"] }),
     });
   });
 
   it("throws on error response", async () => {
     globalThis.fetch = vi.fn().mockReturnValue(mockFetchResponse(false, { error: "Not found" }));
 
-    await expect(updateTask("HAI-001", { dependencies: [] })).rejects.toThrow("Not found");
+    await expect(updateTask("KB-001", { dependencies: [] })).rejects.toThrow("Not found");
   });
 });
 

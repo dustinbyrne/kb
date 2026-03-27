@@ -1,4 +1,4 @@
-import { resolveDependencyOrder, type TaskStore, type Task } from "@hai/core";
+import { resolveDependencyOrder, type TaskStore, type Task } from "@kb/core";
 import type { AgentSemaphore } from "./concurrency.js";
 import { schedulerLog } from "./logger.js";
 

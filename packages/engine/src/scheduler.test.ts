@@ -3,7 +3,7 @@ import { Scheduler } from "./scheduler.js";
 
 function makeTask(overrides: Record<string, unknown> = {}) {
   return {
-    id: "HAI-001",
+    id: "KB-001",
     title: "Test Task",
     column: "todo",
     dependencies: [],
@@ -49,40 +49,40 @@ describe("Scheduler concurrency", () => {
 
   it("respects maxConcurrent with only in-progress tasks", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "in-progress" }),
-      makeTask({ id: "HAI-003", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "in-progress" }),
+      makeTask({ id: "KB-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
 
     await runSchedule(scheduler);
 
-    // HAI-003 should NOT be moved — 2 in-progress already fills maxConcurrent
+    // KB-003 should NOT be moved — 2 in-progress already fills maxConcurrent
     expect(store.moveTask).not.toHaveBeenCalled();
   });
 
   it("counts specifying tasks toward concurrency", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "triage", status: "specifying" }),
-      makeTask({ id: "HAI-003", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
 
     await runSchedule(scheduler);
 
-    // 1 in-progress + 1 specifying = 2 agent slots, no room for HAI-003
+    // 1 in-progress + 1 specifying = 2 agent slots, no room for KB-003
     expect(store.moveTask).not.toHaveBeenCalled();
   });
 
   it("blocks all todo tasks when specifying fills all slots", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "triage", status: "specifying" }),
-      makeTask({ id: "HAI-002", column: "triage", status: "specifying" }),
-      makeTask({ id: "HAI-003", column: "todo" }),
-      makeTask({ id: "HAI-004", column: "todo" }),
+      makeTask({ id: "KB-001", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-002", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-003", column: "todo" }),
+      makeTask({ id: "KB-004", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
@@ -94,9 +94,9 @@ describe("Scheduler concurrency", () => {
 
   it("allows scheduling when mixed slots leave room", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "triage", status: "specifying" }),
-      makeTask({ id: "HAI-003", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "triage", status: "specifying" }),
+      makeTask({ id: "KB-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -111,14 +111,14 @@ describe("Scheduler concurrency", () => {
     await runSchedule(scheduler);
 
     // 1 in-progress + 1 specifying = 2 slots used, 1 available
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
+    expect(store.moveTask).toHaveBeenCalledWith("KB-003", "in-progress");
   });
 
   it("behaves normally when no tasks are specifying", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "triage" }), // no status: "specifying"
-      makeTask({ id: "HAI-003", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "triage" }), // no status: "specifying"
+      makeTask({ id: "KB-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
@@ -126,7 +126,7 @@ describe("Scheduler concurrency", () => {
     await runSchedule(scheduler);
 
     // Only 1 in-progress, triage task without "specifying" doesn't count
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
+    expect(store.moveTask).toHaveBeenCalledWith("KB-003", "in-progress");
   });
 });
 
@@ -142,8 +142,8 @@ describe("Scheduler dynamic settings reload", () => {
 
   it("reads maxConcurrent from store settings on each schedule() call", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     // Start with maxConcurrent: 1 — no room
@@ -159,7 +159,7 @@ describe("Scheduler dynamic settings reload", () => {
     await runSchedule(scheduler);
     expect(store.moveTask).not.toHaveBeenCalled();
 
-    // Now bump maxConcurrent to 2 — room for HAI-002
+    // Now bump maxConcurrent to 2 — room for KB-002
     store.getSettings.mockResolvedValue({
       maxConcurrent: 2,
       maxWorktrees: 4,
@@ -169,14 +169,14 @@ describe("Scheduler dynamic settings reload", () => {
     });
 
     await runSchedule(scheduler);
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+    expect(store.moveTask).toHaveBeenCalledWith("KB-002", "in-progress");
   });
 
   it("reads maxWorktrees from store settings on each schedule() call", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "in-review", worktree: "/tmp/wt" }),
-      makeTask({ id: "HAI-003", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "in-review", worktree: "/tmp/wt" }),
+      makeTask({ id: "KB-003", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     // Start with maxWorktrees: 2 — no room (2 active worktrees)
@@ -192,7 +192,7 @@ describe("Scheduler dynamic settings reload", () => {
     await runSchedule(scheduler);
     expect(store.moveTask).not.toHaveBeenCalled();
 
-    // Bump maxWorktrees to 3 — room for HAI-003
+    // Bump maxWorktrees to 3 — room for KB-003
     store.getSettings.mockResolvedValue({
       maxConcurrent: 4,
       maxWorktrees: 3,
@@ -202,7 +202,7 @@ describe("Scheduler dynamic settings reload", () => {
     });
 
     await runSchedule(scheduler);
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-003", "in-progress");
+    expect(store.moveTask).toHaveBeenCalledWith("KB-003", "in-progress");
   });
 
   it("refreshes poll interval when settings.pollIntervalMs changes", async () => {
@@ -254,8 +254,8 @@ describe("Scheduler file-scope overlap", () => {
 
   it("sets status 'queued' for a todo task deferred due to file scope overlap", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     // Enable file scope grouping
@@ -268,24 +268,24 @@ describe("Scheduler file-scope overlap", () => {
     });
     // Both tasks share overlapping file scopes
     store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
-      if (id === "HAI-001") return ["packages/shared/utils.ts"];
-      if (id === "HAI-002") return ["packages/shared/utils.ts"];
+      if (id === "KB-001") return ["packages/shared/utils.ts"];
+      if (id === "KB-002") return ["packages/shared/utils.ts"];
       return [];
     });
 
     const scheduler = new Scheduler(store, { maxConcurrent: 3 });
     await runSchedule(scheduler);
 
-    // HAI-002 should NOT be moved to in-progress (deferred)
+    // KB-002 should NOT be moved to in-progress (deferred)
     expect(store.moveTask).not.toHaveBeenCalled();
-    // HAI-002 should have status set to "queued" with blockedBy
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-002", { status: "queued", blockedBy: "HAI-001" });
+    // KB-002 should have status set to "queued" with blockedBy
+    expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "queued", blockedBy: "KB-001" });
   });
 
   it("sets blockedBy to the overlapping task ID when deferred due to file scope overlap", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -296,20 +296,20 @@ describe("Scheduler file-scope overlap", () => {
       autoMerge: false,
     });
     store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
-      if (id === "HAI-001") return ["packages/shared/utils.ts"];
-      if (id === "HAI-002") return ["packages/shared/utils.ts"];
+      if (id === "KB-001") return ["packages/shared/utils.ts"];
+      if (id === "KB-002") return ["packages/shared/utils.ts"];
       return [];
     });
 
     const scheduler = new Scheduler(store, { maxConcurrent: 3 });
     await runSchedule(scheduler);
 
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-002", { status: "queued", blockedBy: "HAI-001" });
+    expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "queued", blockedBy: "KB-001" });
   });
 
   it("clears blockedBy when a task is started", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "todo" }),
+      makeTask({ id: "KB-001", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -323,15 +323,15 @@ describe("Scheduler file-scope overlap", () => {
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
     await runSchedule(scheduler);
 
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", { status: null, blockedBy: null });
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "in-progress");
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: null, blockedBy: null });
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "in-progress");
   });
 
   it("does not emit console.log when deferring due to file overlap", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -342,8 +342,8 @@ describe("Scheduler file-scope overlap", () => {
       autoMerge: false,
     });
     store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
-      if (id === "HAI-001") return ["packages/shared/utils.ts"];
-      if (id === "HAI-002") return ["packages/shared/utils.ts"];
+      if (id === "KB-001") return ["packages/shared/utils.ts"];
+      if (id === "KB-002") return ["packages/shared/utils.ts"];
       return [];
     });
 
@@ -358,8 +358,8 @@ describe("Scheduler file-scope overlap", () => {
 
   it("does not set status 'queued' when file scopes do not overlap", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -370,16 +370,16 @@ describe("Scheduler file-scope overlap", () => {
       autoMerge: false,
     });
     store.parseFileScopeFromPrompt.mockImplementation(async (id: string) => {
-      if (id === "HAI-001") return ["packages/a/file.ts"];
-      if (id === "HAI-002") return ["packages/b/file.ts"];
+      if (id === "KB-001") return ["packages/a/file.ts"];
+      if (id === "KB-002") return ["packages/b/file.ts"];
       return [];
     });
 
     const scheduler = new Scheduler(store, { maxConcurrent: 3 });
     await runSchedule(scheduler);
 
-    // HAI-002 should be moved (no overlap)
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+    // KB-002 should be moved (no overlap)
+    expect(store.moveTask).toHaveBeenCalledWith("KB-002", "in-progress");
   });
 });
 
@@ -395,7 +395,7 @@ describe("Scheduler paused tasks", () => {
 
   it("does not schedule paused todo tasks", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "todo", paused: true }),
+      makeTask({ id: "KB-001", column: "todo", paused: true }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
@@ -407,20 +407,20 @@ describe("Scheduler paused tasks", () => {
 
   it("schedules non-paused todo tasks normally", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "todo", paused: false }),
+      makeTask({ id: "KB-001", column: "todo", paused: false }),
     ];
     const store = createMockStore(tasks);
     const scheduler = new Scheduler(store, { maxConcurrent: 2 });
 
     await runSchedule(scheduler);
 
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "in-progress");
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "in-progress");
   });
 
   it("does not count paused specifying tasks toward agent slots", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "triage", status: "specifying", paused: true }),
-      makeTask({ id: "HAI-002", column: "todo" }),
+      makeTask({ id: "KB-001", column: "triage", status: "specifying", paused: true }),
+      makeTask({ id: "KB-002", column: "todo" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -434,8 +434,8 @@ describe("Scheduler paused tasks", () => {
 
     await runSchedule(scheduler);
 
-    // The paused specifying task doesn't consume a slot, so HAI-002 should be scheduled
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-002", "in-progress");
+    // The paused specifying task doesn't consume a slot, so KB-002 should be scheduled
+    expect(store.moveTask).toHaveBeenCalledWith("KB-002", "in-progress");
   });
 });
 
@@ -451,8 +451,8 @@ describe("Scheduler worktree limit logging", () => {
 
   it("logs worktree limit on the first pass when maxed out", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "in-progress" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "in-progress" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -475,8 +475,8 @@ describe("Scheduler worktree limit logging", () => {
 
   it("does not log worktree limit on subsequent passes while still maxed", async () => {
     const tasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "in-progress" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "in-progress" }),
     ];
     const store = createMockStore(tasks);
     store.getSettings.mockResolvedValue({
@@ -505,11 +505,11 @@ describe("Scheduler worktree limit logging", () => {
 
   it("logs worktree limit again after worktrees free up and become maxed again", async () => {
     const maxedTasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
-      makeTask({ id: "HAI-002", column: "in-progress" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
+      makeTask({ id: "KB-002", column: "in-progress" }),
     ];
     const freeTasks = [
-      makeTask({ id: "HAI-001", column: "in-progress" }),
+      makeTask({ id: "KB-001", column: "in-progress" }),
     ];
 
     const store = createMockStore(maxedTasks);

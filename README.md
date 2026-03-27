@@ -1,4 +1,4 @@
-# hai
+# kb
 
 AI-orchestrated task board. Like Trello, but your tasks get specified, executed, and delivered by AI — powered by [pi](https://github.com/badlogic/pi-mono).
 
@@ -39,16 +39,16 @@ pnpm dev task create "Fix the login redirect bug"
 pnpm dev task list
 
 # Move a task
-pnpm dev task move HAI-001 todo
+pnpm dev task move KB-001 todo
 
 # Pause a task (stops all automation)
-pnpm dev task pause HAI-001
+pnpm dev task pause KB-001
 
 # Unpause a task (resumes automation)
-pnpm dev task unpause HAI-001
+pnpm dev task unpause KB-001
 
 # Attach a file to a task (images, logs, configs)
-pnpm dev task attach HAI-001 ./screenshot.png
+pnpm dev task attach KB-001 ./screenshot.png
 
 # Create a task with attachments
 pnpm dev task create "Fix the login bug" -- --attach screenshot.png --attach error.log
@@ -63,28 +63,28 @@ The AI engine uses [pi](https://github.com/badlogic/pi-mono) agent sessions unde
 1. **pi installed:** `npm install -g @mariozechner/pi-coding-agent`
 2. **API key configured:** Run `pi` and use `/login` or set `ANTHROPIC_API_KEY`
 
-hai reuses your existing pi authentication — no separate setup needed.
+kb reuses your existing pi authentication — no separate setup needed.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `@hai/core` | Domain model — tasks, board columns, file-based store |
-| `@hai/dashboard` | Web UI — Express server + kanban board with SSE |
-| `@hai/engine` | AI engine — triage (pi), execution (pi + worktrees), scheduling |
-| `hai` (cli) | CLI — `hai dashboard`, `hai task create/list/move/attach` |
+| `@kb/core` | Domain model — tasks, board columns, file-based store |
+| `@kb/dashboard` | Web UI — Express server + kanban board with SSE |
+| `@kb/engine` | AI engine — triage (pi), execution (pi + worktrees), scheduling |
+| `kb` (cli) | CLI — `kb dashboard`, `kb task create/list/move/attach` |
 
 ## Architecture
 
 ### Task Storage
 
-Tasks live on disk in `.hai/tasks/` in the project root:
+Tasks live on disk in `.kb/tasks/` in the project root:
 
 ```
-.hai/
+.kb/
 ├── config.json              # Board config + ID counter
 └── tasks/
-    └── HAI-001/
+    └── KB-001/
         ├── task.json        # Metadata (column, deps, timestamps)
         ├── PROMPT.md        # Task specification
         └── attachments/     # File attachments — images & text files (optional)
@@ -144,7 +144,7 @@ pnpm dev task list              # CLI commands
 
 ## Building a standalone executable
 
-You can build a single self-contained `hai` binary using [Bun](https://bun.sh/):
+You can build a single self-contained `kb` binary using [Bun](https://bun.sh/):
 
 ```bash
 pnpm build:exe
@@ -152,18 +152,18 @@ pnpm build:exe
 
 This compiles all TypeScript, builds the dashboard client, and produces:
 
-- `packages/cli/dist/hai` — the standalone binary
+- `packages/cli/dist/kb` — the standalone binary
 - `packages/cli/dist/client/` — co-located dashboard assets
 
 Run the binary directly — no Node.js, pnpm, or workspace setup needed:
 
 ```bash
-./packages/cli/dist/hai --help
-./packages/cli/dist/hai task list
-./packages/cli/dist/hai dashboard
+./packages/cli/dist/kb --help
+./packages/cli/dist/kb task list
+./packages/cli/dist/kb dashboard
 ```
 
-To distribute, copy both the `hai` binary and the `client/` directory together.
+To distribute, copy both the `kb` binary and the `client/` directory together.
 
 ### Cross-compilation
 
@@ -177,24 +177,24 @@ This produces binaries for all supported targets in `packages/cli/dist/`:
 
 | Target | Output |
 |--------|--------|
-| `bun-linux-x64` | `hai-linux-x64` |
-| `bun-linux-arm64` | `hai-linux-arm64` |
-| `bun-darwin-x64` | `hai-darwin-x64` |
-| `bun-darwin-arm64` | `hai-darwin-arm64` |
-| `bun-windows-x64` | `hai-windows-x64.exe` |
+| `bun-linux-x64` | `kb-linux-x64` |
+| `bun-linux-arm64` | `kb-linux-arm64` |
+| `bun-darwin-x64` | `kb-darwin-x64` |
+| `bun-darwin-arm64` | `kb-darwin-arm64` |
+| `bun-windows-x64` | `kb-windows-x64.exe` |
 
 To build for a specific platform:
 
 ```bash
-pnpm --filter hai build:exe -- --target bun-linux-x64
+pnpm --filter kb build:exe -- --target bun-linux-x64
 ```
 
 The `client/` directory is shared across all binaries (platform-independent assets).
 
-You can override the dashboard asset path via the `HAI_CLIENT_DIR` environment variable:
+You can override the dashboard asset path via the `KB_CLIENT_DIR` environment variable:
 
 ```bash
-HAI_CLIENT_DIR=/path/to/client ./hai dashboard
+KB_CLIENT_DIR=/path/to/client ./kb dashboard
 ```
 
 **Prerequisites:** Bun ≥ 1.0 (`bun --version`)
@@ -206,7 +206,7 @@ Packages are published to npm automatically via GitHub Actions and [changesets](
 ### Installing from npm
 
 ```bash
-npm install -g hai
+npm install -g kb
 ```
 
 ### Triggering a release

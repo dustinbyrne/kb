@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Board } from "../Board";
-import { COLUMNS } from "@hai/core";
+import { COLUMNS } from "@kb/core";
 
 // Mock child components so we only test Board's own rendering
 vi.mock("../Column", () => ({

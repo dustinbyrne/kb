@@ -1,7 +1,7 @@
 import { exec } from "node:child_process";
-import { TaskStore } from "@hai/core";
-import { createServer } from "@hai/dashboard";
-import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask } from "@hai/engine";
+import { TaskStore } from "@kb/core";
+import { createServer } from "@kb/dashboard";
+import { TriageProcessor, TaskExecutor, Scheduler, AgentSemaphore, WorktreePool, aiMergeTask } from "@kb/engine";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 
 function openBrowser(url: string): void {
@@ -228,11 +228,11 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
 
   app.listen(port, () => {
     console.log();
-    console.log(`  hai board`);
+    console.log(`  kb board`);
     console.log(`  ────────────────────────`);
     console.log(`  → http://localhost:${port}`);
     console.log();
-    console.log(`  Tasks stored in .hai/tasks/`);
+    console.log(`  Tasks stored in .kb/tasks/`);
     console.log(`  Merge:      AI-assisted (conflict resolution + commit messages)`);
     console.log(`  AI engine:  ✓ active`);
     console.log(`    • triage: auto-specifying tasks`);

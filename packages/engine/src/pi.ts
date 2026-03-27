@@ -1,5 +1,5 @@
 /**
- * Shared pi SDK setup for hai engine agents.
+ * Shared pi SDK setup for kb engine agents.
  *
  * Uses the user's existing pi auth (API keys / OAuth from ~/.pi/agent/auth.json).
  * Provides factory functions for creating triage and executor agent sessions.
@@ -37,10 +37,10 @@ export interface AgentOptions {
 }
 
 /**
- * Create a pi agent session configured for hai.
+ * Create a pi agent session configured for kb.
  * Reuses the user's existing pi auth and model configuration.
  */
-export async function createHaiAgent(options: AgentOptions): Promise<AgentResult> {
+export async function createKbAgent(options: AgentOptions): Promise<AgentResult> {
   const authStorage = AuthStorage.create();
   const modelRegistry = new ModelRegistry(authStorage);
 

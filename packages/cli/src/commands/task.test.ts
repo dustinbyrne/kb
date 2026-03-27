@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock @hai/core before importing the module under test
-vi.mock("@hai/core", () => {
+// Mock @kb/core before importing the module under test
+vi.mock("@kb/core", () => {
   const COLUMNS = ["triage", "specified", "in-progress", "review", "done"];
   const COLUMN_LABELS: Record<string, string> = {
     triage: "Triage",
@@ -18,15 +18,15 @@ vi.mock("@hai/core", () => {
   };
 });
 
-// Mock @hai/engine
-vi.mock("@hai/engine", () => ({ aiMergeTask: vi.fn() }));
+// Mock @kb/engine
+vi.mock("@kb/engine", () => ({ aiMergeTask: vi.fn() }));
 
-import { TaskStore } from "@hai/core";
+import { TaskStore } from "@kb/core";
 import { runTaskShow, runTaskCreate } from "./task.js";
 
 function makeTask(overrides: Record<string, unknown> = {}) {
   return {
-    id: "HAI-001",
+    id: "KB-001",
     description: "A short description",
     column: "triage",
     dependencies: [],
@@ -59,16 +59,16 @@ describe("runTaskShow", () => {
       getTask: vi.fn().mockResolvedValue(task),
     }));
 
-    await runTaskShow("HAI-001");
+    await runTaskShow("KB-001");
 
     const headerLine = logSpy.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("HAI-001:")
+      (call) => typeof call[0] === "string" && call[0].includes("KB-001:")
     );
     expect(headerLine).toBeDefined();
     expect(headerLine![0]).toContain(longDesc);
     // Ensure no truncation happened
     expect(headerLine![0]).not.toContain(longDesc.slice(0, 60) + "…");
-    expect(headerLine![0].length).toBeGreaterThan(60 + "  HAI-001: ".length);
+    expect(headerLine![0].length).toBeGreaterThan(60 + "  KB-001: ".length);
   });
 
   it("displays the title when present instead of description", async () => {
@@ -82,10 +82,10 @@ describe("runTaskShow", () => {
       getTask: vi.fn().mockResolvedValue(task),
     }));
 
-    await runTaskShow("HAI-001");
+    await runTaskShow("KB-001");
 
     const headerLine = logSpy.mock.calls.find(
-      (call) => typeof call[0] === "string" && call[0].includes("HAI-001:")
+      (call) => typeof call[0] === "string" && call[0].includes("KB-001:")
     );
     expect(headerLine).toBeDefined();
     expect(headerLine![0]).toContain("My Task Title");
@@ -119,7 +119,7 @@ describe("runTaskCreate with --attach", () => {
     (TaskStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => ({
       init: vi.fn(),
       createTask: vi.fn().mockResolvedValue({
-        id: "HAI-002",
+        id: "KB-002",
         description: "test task",
         column: "triage",
         dependencies: [],
@@ -146,7 +146,7 @@ describe("runTaskCreate with --attach", () => {
 
     expect(mockAddAttachment).toHaveBeenCalledOnce();
     expect(mockAddAttachment).toHaveBeenCalledWith(
-      "HAI-002",
+      "KB-002",
       "test.png",
       expect.any(Buffer),
       "image/png",

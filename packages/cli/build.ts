@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Bun compile build script for the `hai` CLI.
+ * Bun compile build script for the `kb` CLI.
  *
- * Produces a single self-contained executable at packages/cli/dist/hai
+ * Produces a single self-contained executable at packages/cli/dist/kb
  * with the dashboard client assets co-located at packages/cli/dist/client/.
  *
  * Usage:
@@ -38,20 +38,20 @@ type BunTarget = (typeof SUPPORTED_TARGETS)[number];
 
 /**
  * Map a Bun target identifier to the output binary name.
- * e.g. "bun-linux-x64" → "hai-linux-x64", "bun-windows-x64" → "hai-windows-x64.exe"
+ * e.g. "bun-linux-x64" → "kb-linux-x64", "bun-windows-x64" → "kb-windows-x64.exe"
  */
 function binaryNameForTarget(target: BunTarget): string {
   // "bun-linux-x64" → "linux-x64"
   const suffix = target.replace(/^bun-/, "");
   const isWindows = target.includes("windows");
-  return `hai-${suffix}${isWindows ? ".exe" : ""}`;
+  return `kb-${suffix}${isWindows ? ".exe" : ""}`;
 }
 
 /**
  * Determine the default binary name for the current platform (no cross-compile).
  */
 function defaultBinaryName(): string {
-  return process.platform === "win32" ? "hai.exe" : "hai";
+  return process.platform === "win32" ? "kb.exe" : "kb";
 }
 
 // ── Parse CLI arguments ───────────────────────────────────────────────
@@ -146,7 +146,7 @@ const { targets } = parseArgs();
 copyClientAssets();
 
 if (targets === null) {
-  // Default: build for current platform → dist/hai
+  // Default: build for current platform → dist/kb
   const outBinary = join(outDir, defaultBinaryName());
   const ok = compileBinary(outBinary, "bun");
   if (!ok) process.exit(1);

@@ -3,7 +3,7 @@ import { AgentSemaphore } from "./concurrency.js";
 
 // Mock external dependencies
 vi.mock("./pi.js", () => ({
-  createHaiAgent: vi.fn(),
+  createKbAgent: vi.fn(),
 }));
 vi.mock("./reviewer.js", () => ({
   reviewStep: vi.fn(),
@@ -28,14 +28,14 @@ vi.mock("node:fs", () => ({
 }));
 
 import { TaskExecutor, buildExecutionPrompt } from "./executor.js";
-import { createHaiAgent } from "./pi.js";
+import { createKbAgent } from "./pi.js";
 import { execSync } from "node:child_process";
 import { findWorktreeUser, aiMergeTask } from "./merger.js";
 import { WorktreePool } from "./worktree-pool.js";
 import { generateWorktreeName } from "./worktree-names.js";
-import type { Column, Task, TaskDetail } from "@hai/core";
+import type { Column, Task, TaskDetail } from "@kb/core";
 
-const mockedCreateHaiAgent = vi.mocked(createHaiAgent);
+const mockedCreateHaiAgent = vi.mocked(createKbAgent);
 
 function createMockStore() {
   const listeners = new Map<string, Function[]>();
@@ -52,7 +52,7 @@ function createMockStore() {
     emit: vi.fn(),
     listTasks: vi.fn().mockResolvedValue([]),
     getTask: vi.fn().mockResolvedValue({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test task",
       column: "in-progress",
@@ -102,7 +102,7 @@ describe("TaskExecutor with semaphore", () => {
     const executor = new TaskExecutor(store, "/tmp/test", { semaphore: sem });
 
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -132,7 +132,7 @@ describe("TaskExecutor with semaphore", () => {
     });
 
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -157,7 +157,7 @@ describe("TaskExecutor with semaphore", () => {
     const executor = new TaskExecutor(store, "/tmp/test", { onError });
 
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -169,7 +169,7 @@ describe("TaskExecutor with semaphore", () => {
       updatedAt: new Date().toISOString(),
     });
 
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-001", { status: "failed" });
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "failed" });
     expect(onError).toHaveBeenCalled();
   });
 
@@ -209,9 +209,9 @@ describe("TaskExecutor with semaphore", () => {
     });
 
     await Promise.all([
-      executor.execute(task("HAI-001")),
-      executor.execute(task("HAI-002")),
-      executor.execute(task("HAI-003")),
+      executor.execute(task("KB-001")),
+      executor.execute(task("KB-002")),
+      executor.execute(task("KB-003")),
     ]);
 
     expect(maxConcurrent).toBe(1);
@@ -224,7 +224,7 @@ const { existsSync: mockedExistsSyncRaw } = await import("node:fs");
 const mockedExistsSync = vi.mocked(mockedExistsSyncRaw);
 
 describe("TaskExecutor worktreeInitCommand", () => {
-  const makeTask = (id = "HAI-010") => ({
+  const makeTask = (id = "KB-010") => ({
     id,
     title: "Test",
     description: "Test",
@@ -275,7 +275,7 @@ describe("TaskExecutor worktreeInitCommand", () => {
 
     // Should log success
     expect(store.logEntry).toHaveBeenCalledWith(
-      "HAI-010",
+      "KB-010",
       "Worktree init command completed",
       "pnpm install",
     );
@@ -322,7 +322,7 @@ describe("TaskExecutor worktreeInitCommand", () => {
 
     // Should log the failure
     expect(store.logEntry).toHaveBeenCalledWith(
-      "HAI-010",
+      "KB-010",
       expect.stringContaining("Worktree init command failed"),
     );
 
@@ -356,7 +356,7 @@ describe("TaskExecutor worktreeInitCommand", () => {
 });
 
 describe("TaskExecutor worktree naming", () => {
-  const makeTask = (id = "HAI-030", worktree?: string) => ({
+  const makeTask = (id = "KB-030", worktree?: string) => ({
     id,
     title: "Test",
     description: "Test",
@@ -391,7 +391,7 @@ describe("TaskExecutor worktree naming", () => {
     await executor.execute(makeTask());
 
     // The worktree path stored should use the generated name, not the task ID
-    expect(store.updateTask).toHaveBeenCalledWith("HAI-030", {
+    expect(store.updateTask).toHaveBeenCalledWith("KB-030", {
       worktree: "/tmp/test/.worktrees/swift-falcon",
     });
     expect(mockedGenerateWorktreeName).toHaveBeenCalledWith("/tmp/test");
@@ -401,7 +401,7 @@ describe("TaskExecutor worktree naming", () => {
     const store = createMockStore();
     const executor = new TaskExecutor(store, "/tmp/test");
 
-    await executor.execute(makeTask("HAI-099"));
+    await executor.execute(makeTask("KB-099"));
 
     // Verify the worktree path does NOT contain the task ID
     const updateCalls = store.updateTask.mock.calls;
@@ -409,7 +409,7 @@ describe("TaskExecutor worktree naming", () => {
       (call: any[]) => call[1]?.worktree !== undefined,
     );
     expect(worktreeUpdate).toBeDefined();
-    expect(worktreeUpdate![1].worktree).not.toContain("HAI-099");
+    expect(worktreeUpdate![1].worktree).not.toContain("KB-099");
     expect(worktreeUpdate![1].worktree).toContain("swift-falcon");
   });
 
@@ -420,7 +420,7 @@ describe("TaskExecutor worktree naming", () => {
     const store = createMockStore();
     const executor = new TaskExecutor(store, "/tmp/test");
 
-    await executor.execute(makeTask("HAI-031", existingPath));
+    await executor.execute(makeTask("KB-031", existingPath));
 
     // Should NOT generate a new name — reuse the stored path
     expect(mockedGenerateWorktreeName).not.toHaveBeenCalled();
@@ -428,7 +428,7 @@ describe("TaskExecutor worktree naming", () => {
 });
 
 describe("TaskExecutor worktree pool integration", () => {
-  const makeTask = (id = "HAI-020") => ({
+  const makeTask = (id = "KB-020") => ({
     id,
     title: "Test",
     description: "Test",
@@ -482,7 +482,7 @@ describe("TaskExecutor worktree pool integration", () => {
 
     // Should log pool acquisition
     expect(store.logEntry).toHaveBeenCalledWith(
-      "HAI-020",
+      "KB-020",
       expect.stringContaining("Acquired worktree from pool"),
     );
 
@@ -515,7 +515,7 @@ describe("TaskExecutor worktree pool integration", () => {
 
     // Should log worktree creation, NOT pool acquisition
     expect(store.logEntry).toHaveBeenCalledWith(
-      "HAI-020",
+      "KB-020",
       expect.stringContaining("Worktree created at"),
     );
   });
@@ -597,12 +597,12 @@ describe("Merger worktree pool integration", () => {
       }),
       emit: vi.fn(),
       getTask: vi.fn().mockResolvedValue({
-        id: "HAI-050",
+        id: "KB-050",
         title: "Test merge",
         description: "Test",
         column: "in-review",
         dependencies: [],
-        worktree: "/tmp/test/.worktrees/HAI-050",
+        worktree: "/tmp/test/.worktrees/KB-050",
         steps: [],
         currentStep: 0,
         log: [],
@@ -612,7 +612,7 @@ describe("Merger worktree pool integration", () => {
       }),
       updateTask: vi.fn().mockResolvedValue({}),
       moveTask: vi.fn().mockResolvedValue({
-        id: "HAI-050",
+        id: "KB-050",
         column: "done",
         dependencies: [],
         steps: [],
@@ -659,10 +659,10 @@ describe("Merger worktree pool integration", () => {
       },
     } as any);
 
-    const result = await aiMergeTask(store, "/tmp/test", "HAI-050", { pool });
+    const result = await aiMergeTask(store, "/tmp/test", "KB-050", { pool });
 
     // Worktree should be in the pool, NOT removed
-    expect(pool.has("/tmp/test/.worktrees/HAI-050")).toBe(true);
+    expect(pool.has("/tmp/test/.worktrees/KB-050")).toBe(true);
     expect(result.worktreeRemoved).toBe(false);
 
     // git worktree remove should NOT have been called
@@ -686,7 +686,7 @@ describe("Merger worktree pool integration", () => {
       },
     } as any);
 
-    const result = await aiMergeTask(store, "/tmp/test", "HAI-050", { pool });
+    const result = await aiMergeTask(store, "/tmp/test", "KB-050", { pool });
 
     // Worktree should NOT be in the pool
     expect(pool.size).toBe(0);
@@ -702,7 +702,7 @@ describe("Merger worktree pool integration", () => {
 
 function createMockTaskDetail(overrides: Partial<TaskDetail> = {}): TaskDetail {
   return {
-    id: "HAI-001",
+    id: "KB-001",
     title: "Test Task",
     description: "A test task",
     column: "in-progress",
@@ -728,7 +728,7 @@ describe("buildExecutionPrompt", () => {
 
     expect(result).toContain("## Attachments");
     expect(result).toContain("**screenshot.png** (screenshot)");
-    expect(result).toContain("/home/user/project/.hai/tasks/HAI-001/attachments/abc123-screenshot.png");
+    expect(result).toContain("/home/user/project/.kb/tasks/KB-001/attachments/abc123-screenshot.png");
   });
 
   it("includes attachment section with absolute paths for text attachments", () => {
@@ -742,7 +742,7 @@ describe("buildExecutionPrompt", () => {
     expect(result).toContain("## Attachments");
     expect(result).toContain("**error.log** (text/plain)");
     expect(result).toContain("read for context");
-    expect(result).toContain("/home/user/project/.hai/tasks/HAI-001/attachments/def456-error.log");
+    expect(result).toContain("/home/user/project/.kb/tasks/KB-001/attachments/def456-error.log");
   });
 
   it("includes both image and text attachments", () => {
@@ -853,7 +853,7 @@ describe("buildExecutionPrompt", () => {
 
     const executor = new TaskExecutor(store, "/tmp/test");
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -929,7 +929,7 @@ describe("TaskExecutor pause behavior", () => {
         session: {
           prompt: vi.fn().mockImplementation(async () => {
             // Simulate pause happening during agent execution
-            store._trigger("task:updated", { id: "HAI-001", paused: true, column: "in-progress" });
+            store._trigger("task:updated", { id: "KB-001", paused: true, column: "in-progress" });
             // Simulate the dispose causing an error (session terminated)
             throw new Error("Session terminated");
           }),
@@ -940,7 +940,7 @@ describe("TaskExecutor pause behavior", () => {
 
     const executor = new TaskExecutor(store, "/tmp/test");
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -953,8 +953,8 @@ describe("TaskExecutor pause behavior", () => {
     });
 
     // Should move to todo, NOT mark as failed
-    expect(store.moveTask).toHaveBeenCalledWith("HAI-001", "todo");
-    expect(store.updateTask).not.toHaveBeenCalledWith("HAI-001", { status: "failed" });
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "todo");
+    expect(store.updateTask).not.toHaveBeenCalledWith("KB-001", { status: "failed" });
   });
 
   it("does not move to in-review when paused during execution (graceful session end)", async () => {
@@ -965,7 +965,7 @@ describe("TaskExecutor pause behavior", () => {
         session: {
           prompt: vi.fn().mockImplementation(async () => {
             // Simulate pause — session ends gracefully (no throw)
-            store._trigger("task:updated", { id: "HAI-001", paused: true, column: "in-progress" });
+            store._trigger("task:updated", { id: "KB-001", paused: true, column: "in-progress" });
           }),
           dispose: vi.fn(),
         },
@@ -974,7 +974,7 @@ describe("TaskExecutor pause behavior", () => {
 
     const executor = new TaskExecutor(store, "/tmp/test");
     await executor.execute({
-      id: "HAI-001",
+      id: "KB-001",
       title: "Test",
       description: "Test",
       column: "in-progress",
@@ -987,14 +987,14 @@ describe("TaskExecutor pause behavior", () => {
     });
 
     // Should NOT move to in-review (paused tasks skip that logic)
-    expect(store.moveTask).not.toHaveBeenCalledWith("HAI-001", "in-review");
+    expect(store.moveTask).not.toHaveBeenCalledWith("KB-001", "in-review");
   });
 
   it("skips paused tasks during resumeOrphaned", async () => {
     const store = createMockStore();
     store.listTasks.mockResolvedValue([
-      { id: "HAI-001", column: "in-progress", paused: true, title: "Paused task" },
-      { id: "HAI-002", column: "in-progress", paused: false, title: "Active task" },
+      { id: "KB-001", column: "in-progress", paused: true, title: "Paused task" },
+      { id: "KB-002", column: "in-progress", paused: false, title: "Active task" },
     ]);
 
     mockedCreateHaiAgent.mockResolvedValue({
@@ -1007,8 +1007,8 @@ describe("TaskExecutor pause behavior", () => {
     const executor = new TaskExecutor(store, "/tmp/test");
     await executor.resumeOrphaned();
 
-    // Only HAI-002 should be resumed (HAI-001 is paused)
-    expect(store.logEntry).toHaveBeenCalledWith("HAI-002", "Resumed after engine restart");
-    expect(store.logEntry).not.toHaveBeenCalledWith("HAI-001", expect.anything());
+    // Only KB-002 should be resumed (KB-001 is paused)
+    expect(store.logEntry).toHaveBeenCalledWith("KB-002", "Resumed after engine restart");
+    expect(store.logEntry).not.toHaveBeenCalledWith("KB-001", expect.anything());
   });
 });

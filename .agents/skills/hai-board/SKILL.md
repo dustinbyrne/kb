@@ -1,14 +1,14 @@
 ---
-name: hai-board
-description: Start and manage the hai dashboard web UI and AI engine. Use when asked to start the board, run the dashboard, enable the AI engine, or configure hai settings.
+name: kb-board
+description: Start and manage the kb dashboard web UI and AI engine. Use when asked to start the board, run the dashboard, enable the AI engine, or configure kb settings.
 ---
 
-# hai board
+# kb board
 
 ## Start the dashboard
 
 ```bash
-hai dashboard
+kb dashboard
 ```
 
 Opens the kanban board at http://localhost:4040 and starts the AI engine.
@@ -30,7 +30,7 @@ Run in two terminals:
 
 ```bash
 # Terminal 1: start the server + engine
-hai dashboard
+kb dashboard
 
 # Terminal 2: watch-rebuild the React dashboard UI
 pnpm dev:ui
@@ -38,7 +38,7 @@ pnpm dev:ui
 
 ## Configuration
 
-Settings are in `.hai/config.json`:
+Settings are in `.kb/config.json`:
 
 ```json
 {
@@ -61,13 +61,13 @@ Settings are in `.hai/config.json`:
 
 ## Task storage
 
-Tasks live in `.hai/tasks/`:
+Tasks live in `.kb/tasks/`:
 
 ```
-.hai/
+.kb/
 ├── config.json
 └── tasks/
-    └── HAI-001/
+    └── KB-001/
         ├── task.json    # Metadata, steps, log
         └── PROMPT.md    # Task specification
 ```

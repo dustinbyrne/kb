@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe("useAgentLogs", () => {
   it("does not fetch or connect when enabled=false", () => {
-    const { result } = renderHook(() => useAgentLogs("HAI-001", false));
+    const { result } = renderHook(() => useAgentLogs("KB-001", false));
 
     expect(mockFetchAgentLogs).not.toHaveBeenCalled();
     expect(MockEventSource.instances).toHaveLength(0);
@@ -60,27 +60,27 @@ describe("useAgentLogs", () => {
 
   it("fetches historical logs and opens SSE when enabled=true", async () => {
     const historicalLogs = [
-      { timestamp: "2026-01-01T00:00:00Z", taskId: "HAI-001", text: "old", type: "text" as const },
+      { timestamp: "2026-01-01T00:00:00Z", taskId: "KB-001", text: "old", type: "text" as const },
     ];
     mockFetchAgentLogs.mockResolvedValueOnce(historicalLogs);
 
-    const { result } = renderHook(() => useAgentLogs("HAI-001", true));
+    const { result } = renderHook(() => useAgentLogs("KB-001", true));
 
     await waitFor(() => {
       expect(result.current.entries).toEqual(historicalLogs);
     });
 
-    expect(mockFetchAgentLogs).toHaveBeenCalledWith("HAI-001");
+    expect(mockFetchAgentLogs).toHaveBeenCalledWith("KB-001");
     expect(MockEventSource.instances).toHaveLength(1);
-    expect(MockEventSource.instances[0].url).toBe("/api/tasks/HAI-001/logs/stream");
+    expect(MockEventSource.instances[0].url).toBe("/api/tasks/KB-001/logs/stream");
   });
 
   it("appends live SSE entries to historical entries", async () => {
     mockFetchAgentLogs.mockResolvedValueOnce([
-      { timestamp: "2026-01-01T00:00:00Z", taskId: "HAI-001", text: "old", type: "text" as const },
+      { timestamp: "2026-01-01T00:00:00Z", taskId: "KB-001", text: "old", type: "text" as const },
     ]);
 
-    const { result } = renderHook(() => useAgentLogs("HAI-001", true));
+    const { result } = renderHook(() => useAgentLogs("KB-001", true));
 
     await waitFor(() => {
       expect(result.current.entries).toHaveLength(1);
@@ -90,7 +90,7 @@ describe("useAgentLogs", () => {
     act(() => {
       es._emit("agent:log", {
         timestamp: "2026-01-01T00:01:00Z",
-        taskId: "HAI-001",
+        taskId: "KB-001",
         text: "new",
         type: "text",
       });
@@ -104,7 +104,7 @@ describe("useAgentLogs", () => {
     mockFetchAgentLogs.mockResolvedValueOnce([]);
 
     const { rerender } = renderHook(
-      ({ enabled }) => useAgentLogs("HAI-001", enabled),
+      ({ enabled }) => useAgentLogs("KB-001", enabled),
       { initialProps: { enabled: true } },
     );
 
@@ -122,7 +122,7 @@ describe("useAgentLogs", () => {
   it("closes SSE on unmount", async () => {
     mockFetchAgentLogs.mockResolvedValueOnce([]);
 
-    const { unmount } = renderHook(() => useAgentLogs("HAI-001", true));
+    const { unmount } = renderHook(() => useAgentLogs("KB-001", true));
 
     await waitFor(() => {
       expect(MockEventSource.instances).toHaveLength(1);

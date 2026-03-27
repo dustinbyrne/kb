@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@hai/core": resolve(__dirname, "../core/src/types.ts"),
+      "@kb/core": resolve(__dirname, "../core/src/types.ts"),
     },
   },
   test: {

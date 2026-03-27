@@ -24,11 +24,11 @@ if (isBunBinary) {
 
   if (!existsSync(localPkg)) {
     // Write a minimal package.json to a temp dir and redirect PI_PACKAGE_DIR
-    const tmp = mkdtempSync(join(tmpdir(), "hai-pkg-"));
+    const tmp = mkdtempSync(join(tmpdir(), "kb-pkg-"));
     writeFileSync(
       join(tmp, "package.json"),
       JSON.stringify(
-        { name: "hai", version: "0.1.0", type: "module", piConfig: { name: "hai", configDir: ".hai" } },
+        { name: "kb", version: "0.1.0", type: "module", piConfig: { name: "kb", configDir: ".kb" } },
         null,
         2,
       ) + "\n",
@@ -42,20 +42,20 @@ const { runDashboard } = await import("./commands/dashboard.js");
 const { runTaskCreate, runTaskList, runTaskMove, runTaskMerge, runTaskUpdate, runTaskLog, runTaskShow, runTaskAttach, runTaskPause, runTaskUnpause } = await import("./commands/task.js");
 
 const HELP = `
-hai — AI-orchestrated task board
+kb — AI-orchestrated task board
 
 Usage:
-  hai dashboard                        Start the board web UI
-  hai task create [desc] [--attach f]   Create a new task (goes to triage)
-  hai task list                        List all tasks
-  hai task show <id>                   Show task details, steps, log
-  hai task move <id> <col>             Move a task to a column
-  hai task update <id> <step> <status> Update step status (pending|in-progress|done|skipped)
-  hai task log <id> <message>          Add a log entry
-  hai task merge <id>                  Merge an in-review task and close it
-  hai task attach <id> <file>          Attach a file to a task
-  hai task pause <id>                  Pause a task (stops all automation)
-  hai task unpause <id>                Unpause a task (resumes automation)
+  kb dashboard                        Start the board web UI
+  kb task create [desc] [--attach f]   Create a new task (goes to triage)
+  kb task list                        List all tasks
+  kb task show <id>                   Show task details, steps, log
+  kb task move <id> <col>             Move a task to a column
+  kb task update <id> <step> <status> Update step status (pending|in-progress|done|skipped)
+  kb task log <id> <message>          Add a log entry
+  kb task merge <id>                  Merge an in-review task and close it
+  kb task attach <id> <file>          Attach a file to a task
+  kb task pause <id>                  Pause a task (stops all automation)
+  kb task unpause <id>                Unpause a task (resumes automation)
 
 Options:
   --port, -p <port>          Dashboard port (default: 4040)
@@ -118,7 +118,7 @@ async function main() {
             const id = args[2];
             const column = args[3];
             if (!id || !column) {
-              console.error("Usage: hai task move <id> <column>");
+              console.error("Usage: kb task move <id> <column>");
               process.exit(1);
             }
             await runTaskMove(id, column);
@@ -126,14 +126,14 @@ async function main() {
           }
           case "show": {
             const id = args[2];
-            if (!id) { console.error("Usage: hai task show <id>"); process.exit(1); }
+            if (!id) { console.error("Usage: kb task show <id>"); process.exit(1); }
             await runTaskShow(id);
             break;
           }
           case "update": {
             const id = args[2], step = args[3], status = args[4];
             if (!id || !step || !status) {
-              console.error("Usage: hai task update <id> <step> <status>");
+              console.error("Usage: kb task update <id> <step> <status>");
               console.error("Status: pending | in-progress | done | skipped");
               process.exit(1);
             }
@@ -142,20 +142,20 @@ async function main() {
           }
           case "log": {
             const id = args[2], message = args.slice(3).join(" ");
-            if (!id || !message) { console.error("Usage: hai task log <id> <message>"); process.exit(1); }
+            if (!id || !message) { console.error("Usage: kb task log <id> <message>"); process.exit(1); }
             await runTaskLog(id, message);
             break;
           }
           case "merge": {
             const id = args[2];
-            if (!id) { console.error("Usage: hai task merge <id>"); process.exit(1); }
+            if (!id) { console.error("Usage: kb task merge <id>"); process.exit(1); }
             await runTaskMerge(id);
             break;
           }
           case "attach": {
             const id = args[2], file = args[3];
             if (!id || !file) {
-              console.error("Usage: hai task attach <id> <file>");
+              console.error("Usage: kb task attach <id> <file>");
               process.exit(1);
             }
             await runTaskAttach(id, file);
@@ -163,19 +163,19 @@ async function main() {
           }
           case "pause": {
             const id = args[2];
-            if (!id) { console.error("Usage: hai task pause <id>"); process.exit(1); }
+            if (!id) { console.error("Usage: kb task pause <id>"); process.exit(1); }
             await runTaskPause(id);
             break;
           }
           case "unpause": {
             const id = args[2];
-            if (!id) { console.error("Usage: hai task unpause <id>"); process.exit(1); }
+            if (!id) { console.error("Usage: kb task unpause <id>"); process.exit(1); }
             await runTaskUnpause(id);
             break;
           }
           default:
             console.error(`Unknown subcommand: task ${subcommand || ""}`);
-            console.log("Try: hai task create | list | move");
+            console.log("Try: kb task create | list | move");
             process.exit(1);
         }
         break;

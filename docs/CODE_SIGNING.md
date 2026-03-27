@@ -1,6 +1,6 @@
 # Code Signing Setup Guide
 
-This document explains how to configure code signing for `hai` release binaries so they don't trigger OS security warnings on macOS (Gatekeeper) or Windows (SmartScreen).
+This document explains how to configure code signing for `kb` release binaries so they don't trigger OS security warnings on macOS (Gatekeeper) or Windows (SmartScreen).
 
 ## Overview
 
@@ -56,7 +56,7 @@ Your Team ID is visible at [developer.apple.com/account](https://developer.apple
 
 1. Go to [appleid.apple.com](https://appleid.apple.com/)
 2. Sign in and navigate to **Sign-In and Security** → **App-Specific Passwords**
-3. Generate a new password and label it (e.g., "hai notarization")
+3. Generate a new password and label it (e.g., "kb notarization")
 4. Use this as the `APPLE_APP_PASSWORD` secret
 
 ### 5. Determine Your Signing Identity

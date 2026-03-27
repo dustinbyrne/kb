@@ -8,8 +8,8 @@ export function Header({ onOpenSettings }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-left">
-        <img src="/logo.svg" alt="hai logo" className="header-logo" width={24} height={24} />
-        <h1 className="logo">hai</h1>
+        <img src="/logo.svg" alt="kb logo" className="header-logo" width={24} height={24} />
+        <h1 className="logo">kb</h1>
         <span className="logo-sub">board</span>
       </div>
       <div className="header-actions">

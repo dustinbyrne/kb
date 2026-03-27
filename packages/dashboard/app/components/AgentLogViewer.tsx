@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AgentLogEntry } from "@hai/core";
+import type { AgentLogEntry } from "@kb/core";
 
 interface AgentLogViewerProps {
   entries: AgentLogEntry[];

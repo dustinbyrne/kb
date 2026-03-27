@@ -1,5 +1,5 @@
 {
-  "name": "@hai/dashboard",
+  "name": "@kb/dashboard",
   "version": "0.1.0",
   "type": "module",
   "exports": {
@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
-    "@hai/core": "workspace:*",
+    "@kb/core": "workspace:*",
     "@types/multer": "^2.1.0",
     "express": "^5.1.0",
     "lucide-react": "^1.7.0",

@@ -6,6 +6,7 @@ dist/
 *.tsbuildinfo
 
 # hai runtime (local board state — don't commit)
+.kb/
 .hai/
 
 # Taskplane runtime artifacts

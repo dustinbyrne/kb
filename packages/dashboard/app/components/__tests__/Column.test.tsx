@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Column } from "../Column";
-import type { Task, Column as ColumnType } from "@hai/core";
+import type { Task, Column as ColumnType } from "@kb/core";
 
 // Mock child components to keep tests focused on the Column badge behavior
 vi.mock("../TaskCard", () => ({
@@ -43,7 +43,7 @@ const defaultProps = {
 
 describe("Column count-flash", () => {
   it("does not apply count-flash class on initial render", () => {
-    const tasks = [makeTask("HAI-001")];
+    const tasks = [makeTask("KB-001")];
     render(<Column {...defaultProps} tasks={tasks} />);
 
     const badge = screen.getByText("1");
@@ -52,10 +52,10 @@ describe("Column count-flash", () => {
   });
 
   it("applies count-flash class when task count increases", () => {
-    const tasks = [makeTask("HAI-001")];
+    const tasks = [makeTask("KB-001")];
     const { rerender } = render(<Column {...defaultProps} tasks={tasks} />);
 
-    const moreTasks = [makeTask("HAI-001"), makeTask("HAI-002")];
+    const moreTasks = [makeTask("KB-001"), makeTask("KB-002")];
     rerender(<Column {...defaultProps} tasks={moreTasks} />);
 
     const badge = screen.getByText("2");
@@ -63,10 +63,10 @@ describe("Column count-flash", () => {
   });
 
   it("does not apply count-flash class when task count decreases", () => {
-    const tasks = [makeTask("HAI-001"), makeTask("HAI-002")];
+    const tasks = [makeTask("KB-001"), makeTask("KB-002")];
     const { rerender } = render(<Column {...defaultProps} tasks={tasks} />);
 
-    const fewerTasks = [makeTask("HAI-001")];
+    const fewerTasks = [makeTask("KB-001")];
     rerender(<Column {...defaultProps} tasks={fewerTasks} />);
 
     const badge = screen.getByText("1");
