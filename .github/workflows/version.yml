@@ -1,12 +1,7 @@
 # Release workflow: npm publishing via changesets + OIDC
 #
-# This workflow runs on every push to main and does one of two things:
-# 1. If there are pending changesets: creates/updates a "Version Packages" PR
-#    that bumps versions and updates changelogs.
-# 2. If there are no pending changesets (i.e., a version PR was just merged):
-#    builds all packages and publishes them to npm.
-#
-# Uses npm OIDC publishing — no NPM_TOKEN secret needed.
+# Uses npm OIDC trusted publishing — no NPM_TOKEN secret needed.
+# Requires npm 11.5.1+ for OIDC support.
 
 name: Version & Release
 
@@ -33,11 +28,14 @@ jobs:
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure modern npm (OIDC support)
+        run: npm install -g npm@11.6.4
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
@@ -52,3 +50,4 @@ jobs:
           publish: pnpm -r publish --provenance --access public
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
