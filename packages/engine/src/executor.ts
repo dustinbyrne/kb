@@ -533,10 +533,15 @@ export class TaskExecutor {
         await store.logEntry(taskId, `${reviewType} review requested for Step ${step} (${step_name})`);
 
         try {
+          const settings = await store.getSettings();
           const result = await reviewStep(
             worktreePath, taskId, step, step_name,
             reviewType, promptContent, baseline,
-            { onText: (delta) => options.onAgentText?.(taskId, delta) },
+            {
+              onText: (delta) => options.onAgentText?.(taskId, delta),
+              defaultProvider: settings.defaultProvider,
+              defaultModelId: settings.defaultModelId,
+            },
           );
 
           await store.logEntry(
