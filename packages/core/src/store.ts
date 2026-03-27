@@ -188,6 +188,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       steps: [],
       currentStep: 0,
       log: [{ timestamp: now, action: "Task created" }],
+      columnMovedAt: now,
       createdAt: now,
       updatedAt: now,
     };
@@ -263,7 +264,8 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
       const fromColumn = task.column;
       task.column = toColumn;
-      task.updatedAt = new Date().toISOString();
+      task.columnMovedAt = new Date().toISOString();
+      task.updatedAt = task.columnMovedAt;
 
       // Clear transient fields when moving to done (matches moveToDone behavior)
       if (toColumn === "done") {
@@ -605,7 +607,8 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
     task.worktree = undefined;
     task.status = undefined;
     task.blockedBy = undefined;
-    task.updatedAt = new Date().toISOString();
+    task.columnMovedAt = new Date().toISOString();
+    task.updatedAt = task.columnMovedAt;
 
     await this.atomicWriteTaskJson(dir, task);
 
