@@ -6,11 +6,18 @@ AI-orchestrated task board. Like Trello, but your tasks get specified, executed,
 
 ```mermaid
 graph LR
-    T[🟡 Triage] -->|AI specifies| TD[🔵 Todo]
-    TD -->|deps met| IP[🟣 In Progress]
-    IP -->|complete| IR[🟢 In Review]
-    IR -->|merged| D[⚫ Done]
-    IR -.->|needs work| IP
+    H((You)) -->|rough idea| T[Triage]
+    T -->|AI writes spec| TD[Todo]
+    TD -->|deps met,\nagent free| IP[In Progress]
+    IP -->|all steps done,\nreviews pass| IR[In Review]
+    IR -->|squash merge| D[Done]
+
+    subgraph IP[In Progress]
+        direction TB
+        E[Execute step] --> R{Review}
+        R -->|approve| E
+        R -->|revise| E
+    end
 
     style T fill:#2d2006,stroke:#d29922,color:#d29922
     style TD fill:#0d2044,stroke:#58a6ff,color:#58a6ff
@@ -18,14 +25,6 @@ graph LR
     style IR fill:#0d2d16,stroke:#3fb950,color:#3fb950
     style D fill:#1a1a1a,stroke:#8b949e,color:#8b949e
 ```
-
-| Column | What happens |
-|--------|-------------|
-| **Triage** | Throw rough ideas in. AI picks them up and writes a full task spec. |
-| **Todo** | Fully specified. Scheduler moves them when deps are met. |
-| **In Progress** | AI works the task in an isolated git worktree with cross-model code review. |
-| **In Review** | Work is done. Merge the worktree and close. Toggle **Auto-merge** to merge automatically. |
-| **Done** | Squash-merged to main. |
 
 Tasks with dependencies are processed sequentially. Independent tasks run in parallel.
 
