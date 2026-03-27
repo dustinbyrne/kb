@@ -11,25 +11,18 @@ description: Start and manage the hai dashboard web UI and AI engine. Use when a
 hai dashboard
 ```
 
-Opens the kanban board at http://localhost:4040.
+Opens the kanban board at http://localhost:4040 and starts the AI engine.
 
-Options:
-- `--port <N>` or `-p <N>` — custom port (default: 4040)
-- `--engine` — enable the AI engine (auto-triage, scheduling, execution)
-- `--no-open` — don't open the browser automatically
-
-### With AI engine
-
-```bash
-hai dashboard --engine
-```
-
-Enables:
+The AI engine provides:
 - **Triage processor** — auto-specifies tasks in the triage column
 - **Scheduler** — moves todo tasks to in-progress when dependencies are met
 - **Executor** — runs tasks in git worktrees via AI agents
 - **Auto-merge** — squash-merges completed tasks to main
 - **Cross-model review** — independent reviewer agent checks work at step boundaries
+
+Options:
+- `--port <N>` or `-p <N>` — custom port (default: 4040)
+- `--no-open` — don't open the browser automatically
 
 ### Development mode
 
@@ -37,7 +30,7 @@ Run in two terminals:
 
 ```bash
 # Terminal 1: start the server + engine
-hai dashboard --engine
+hai dashboard
 
 # Terminal 2: watch-rebuild the React dashboard UI
 pnpm dev:ui
