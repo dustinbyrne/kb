@@ -33,6 +33,12 @@ describe("CLI package.json publishing config", () => {
   it("is not private", () => {
     expect(pkg.private).not.toBe(true);
   });
+
+  it("does not have @kb/* workspace packages in dependencies", () => {
+    const deps = Object.keys(pkg.dependencies || {});
+    const kbDeps = deps.filter((d) => d.startsWith("@kb/"));
+    expect(kbDeps).toEqual([]);
+  });
 });
 
 describe("Scoped @kb/* packages publishing config", () => {

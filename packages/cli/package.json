@@ -11,19 +11,23 @@
   ],
   "scripts": {
     "dev": "tsx src/bin.ts",
-    "build": "tsc",
+    "build": "tsup",
     "build:exe": "bun run build.ts",
     "build:exe:all": "bun run build.ts --all",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.62.0",
+    "@mariozechner/pi-coding-agent": "^0.62.0",
+    "express": "^5.1.0",
+    "multer": "^2.1.1"
+  },
+  "devDependencies": {
     "@kb/core": "workspace:*",
     "@kb/dashboard": "workspace:*",
     "@kb/engine": "workspace:*",
-    "@mariozechner/pi-coding-agent": "^0.62.0"
-  },
-  "devDependencies": {
+    "tsup": "^8.5.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.1.0",
