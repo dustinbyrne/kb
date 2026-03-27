@@ -111,6 +111,10 @@ export interface ReviewResult {
 
 export interface ReviewOptions {
   onText?: (delta: string) => void;
+  /** Default model provider (e.g. "anthropic"). When set with `defaultModelId`, overrides the reviewer's model selection. */
+  defaultProvider?: string;
+  /** Default model ID within the provider (e.g. "claude-sonnet-4-5"). When set with `defaultProvider`, overrides the reviewer's model selection. */
+  defaultModelId?: string;
 }
 
 /**
@@ -137,6 +141,8 @@ export async function reviewStep(
     systemPrompt: REVIEWER_SYSTEM_PROMPT,
     tools: "readonly",
     onText: (delta) => options.onText?.(delta),
+    defaultProvider: options.defaultProvider,
+    defaultModelId: options.defaultModelId,
   });
 
   let reviewText = "";

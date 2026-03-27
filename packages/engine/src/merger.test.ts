@@ -292,6 +292,52 @@ describe("aiMergeTask — includeTaskIdInCommit setting", () => {
   });
 });
 
+describe("aiMergeTask — model settings threading", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+    setupHappyPathExecSync();
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+  });
+
+  it("passes defaultProvider and defaultModelId from settings to createHaiAgent", async () => {
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+    (store.getSettings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      defaultProvider: "openai",
+      defaultModelId: "gpt-4o",
+    });
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(1);
+    const opts = mockedCreateHaiAgent.mock.calls[0][0] as any;
+    expect(opts.defaultProvider).toBe("openai");
+    expect(opts.defaultModelId).toBe("gpt-4o");
+  });
+
+  it("does not set model fields when settings omit them", async () => {
+    const store = createMockStore(
+      { id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050" },
+      [{ id: "HAI-050", worktree: "/tmp/root/.worktrees/HAI-050", column: "in-review" } as Task],
+    );
+
+    await aiMergeTask(store, "/tmp/root", "HAI-050");
+
+    const opts = mockedCreateHaiAgent.mock.calls[0][0] as any;
+    expect(opts.defaultProvider).toBeUndefined();
+    expect(opts.defaultModelId).toBeUndefined();
+  });
+});
+
 describe("aiMergeTask — agent log persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();

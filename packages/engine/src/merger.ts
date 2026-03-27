@@ -231,12 +231,15 @@ export async function aiMergeTask(
       : undefined,
   });
 
+  // Forward model settings from store so the merger honours the user's model choice
   const { session } = await createHaiAgent({
     cwd: rootDir,
     systemPrompt: buildMergeSystemPrompt(includeTaskId),
     tools: "coding",
     onText: agentLogger.onText,
     onToolStart: agentLogger.onToolStart,
+    defaultProvider: settings.defaultProvider,
+    defaultModelId: settings.defaultModelId,
   });
 
   try {
