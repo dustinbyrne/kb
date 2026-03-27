@@ -10,6 +10,7 @@
     "build": "pnpm -r build",
     "build:exe": "pnpm build && pnpm --filter hai build:exe",
     "build:exe:all": "pnpm build && pnpm --filter hai build:exe:all",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "changeset": "changeset",
     "version": "changeset version",

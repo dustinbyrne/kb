@@ -249,7 +249,7 @@ describe("Code signing — Release workflow", () => {
   it("checksums step comes after signing steps", () => {
     const signMacosIndex = content.indexOf("sign-macos.sh");
     const signWindowsIndex = content.indexOf("sign-windows.ps1");
-    const checksumIndex = content.indexOf("Generate checksums");
+    const checksumIndex = content.indexOf("Generate checksum");
     expect(signMacosIndex).toBeLessThan(checksumIndex);
     expect(signWindowsIndex).toBeLessThan(checksumIndex);
   });
