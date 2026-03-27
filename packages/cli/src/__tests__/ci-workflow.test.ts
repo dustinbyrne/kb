@@ -99,6 +99,14 @@ describe("Version & Release workflow (.github/workflows/version.yml)", () => {
     expect(workflow.permissions["pull-requests"]).toBe("write");
   });
 
+  it("has id-token write permission for npm provenance", () => {
+    expect(workflow.permissions["id-token"]).toBe("write");
+  });
+
+  it("publishes with --provenance flag", () => {
+    expect(content).toContain("--provenance");
+  });
+
   it("configures npm registry-url", () => {
     const steps = workflow.jobs.release.steps;
     const nodeStep = steps.find((s: any) => s.uses?.includes("actions/setup-node"));
