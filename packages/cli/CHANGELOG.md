@@ -1,5 +1,19 @@
 # @dustinbyrne/kb
 
+## 0.3.0
+
+### Minor Changes
+
+- fc7582d: Expand agent.log logging to all agent types, additionally capturing thinking, and agent roles
+- cc999ef: RETHINK verdicts trigger git reset and conversation rewind, re-prompting the agent with feedback
+
+### Patch Changes
+
+- f3c7f7d: CLI `task create` now supports a `--depends <id>` flag (repeatable) to declare task dependencies at creation time.
+- fc7582d: Code review REVISE verdicts are now enforced such that agents can no longer advance steps without APPROVE
+- cc999ef: Plan RETHINK triggers conversation rewind with REVISE enforcement on code reviews
+- cc999ef: Dependent tasks can start from in-review dependency branches instead of waiting for merge
+
 ## 0.2.1
 
 ### Patch Changes
