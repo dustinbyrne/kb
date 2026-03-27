@@ -6,7 +6,7 @@ import { findWorktreeUser } from "./merger.js";
 import { generateWorktreeName } from "./worktree-names.js";
 import { Type, type Static } from "@mariozechner/pi-ai";
 import { createKbAgent } from "./pi.js";
-import { reviewStep } from "./reviewer.js";
+import { reviewStep, type ReviewVerdict } from "./reviewer.js";
 import type { ToolDefinition } from "@mariozechner/pi-coding-agent";
 import type { AgentSemaphore } from "./concurrency.js";
 import type { WorktreePool } from "./worktree-pool.js";
@@ -104,7 +104,11 @@ model, read-only access) to independently assess your work.
 
 **Handling verdicts:**
 - **APPROVE** → proceed to next step
-- **REVISE** → read the feedback, fix the issues, commit again, then proceed
+- **REVISE (code review)** → **enforced**. You MUST fix the issues, commit again,
+  and re-run \`review_step(type="code")\` before the step can be marked done.
+  \`task_update(status="done")\` will be rejected until the code review passes.
+- **REVISE (plan review)** → advisory. Incorporate the feedback at your discretion
+  and proceed with implementation. No re-review is required.
 - **RETHINK** → reconsider your approach, adjust plan, then implement
 
 ## Git discipline
@@ -326,13 +330,17 @@ export class TaskExecutor {
       }
 
       // Build custom tools for the worker
+      // Track the last code review verdict per step so we can enforce REVISE
+      // (block task_update status="done" until the agent re-reviews and gets APPROVE).
+      const codeReviewVerdicts = new Map<number, ReviewVerdict>();
+
       let taskDone = false;
       const customTools = [
-        this.createTaskUpdateTool(task.id),
+        this.createTaskUpdateTool(task.id, codeReviewVerdicts),
         this.createTaskLogTool(task.id),
         this.createTaskCreateTool(),
         this.createTaskDoneTool(task.id, () => { taskDone = true; }),
-        this.createReviewStepTool(task.id, worktreePath, detail.prompt),
+        this.createReviewStepTool(task.id, worktreePath, detail.prompt, codeReviewVerdicts),
       ];
 
       const agentLogger = new AgentLogger({
@@ -413,7 +421,10 @@ export class TaskExecutor {
 
   // ── Custom tools for the worker agent ──────────────────────────────
 
-  private createTaskUpdateTool(taskId: string): ToolDefinition {
+  private createTaskUpdateTool(
+    taskId: string,
+    codeReviewVerdicts: Map<number, ReviewVerdict>,
+  ): ToolDefinition {
     const store = this.store;
     return {
       name: "task_update",
@@ -425,6 +436,23 @@ export class TaskExecutor {
       parameters: taskUpdateParams,
       execute: async (_id: string, params: Static<typeof taskUpdateParams>) => {
         const { step, status } = params;
+
+        // Enforce code review REVISE: block advancing to "done" when the last
+        // code review for this step returned REVISE. The agent must fix the
+        // issues and call review_step(type="code") again before proceeding.
+        if (status === "done" && codeReviewVerdicts.get(step) === "REVISE") {
+          return {
+            content: [{
+              type: "text" as const,
+              text: `Cannot mark Step ${step} as done — the last code review returned REVISE. ` +
+                `Fix the issues from the code review, commit your changes, and call ` +
+                `review_step(step=${step}, type="code") again. The step can only advance ` +
+                `after the code review passes.`,
+            }],
+            details: {},
+          };
+        }
+
         const task = await store.updateStep(taskId, step, status as StepStatus);
         const stepInfo = task.steps[step];
         const progress = task.steps.filter((s) => s.status === "done").length;
@@ -518,6 +546,7 @@ export class TaskExecutor {
     taskId: string,
     worktreePath: string,
     promptContent: string,
+    codeReviewVerdicts: Map<number, ReviewVerdict>,
   ): ToolDefinition {
     const store = this.store;
     const options = this.options;
@@ -559,10 +588,28 @@ export class TaskExecutor {
           );
           reviewerLog.log(`${taskId}: Step ${step} ${reviewType} → ${result.verdict}`);
 
+          // Track code review verdicts for enforcement. Plan reviews remain
+          // advisory — only code reviews write to the verdict map.
+          if (reviewType === "code") {
+            if (result.verdict === "REVISE") {
+              codeReviewVerdicts.set(step, "REVISE");
+            } else if (result.verdict === "APPROVE") {
+              codeReviewVerdicts.delete(step);
+            }
+          }
+
           let text: string;
           switch (result.verdict) {
             case "APPROVE": text = "APPROVE"; break;
-            case "REVISE": text = `REVISE\n\n${result.review}`; break;
+            case "REVISE":
+              if (reviewType === "code") {
+                text = `REVISE — this step cannot be marked done until the code review passes.\n\n` +
+                  `Fix the issues below, commit your changes, and call review_step(step=${step}, ` +
+                  `type="code", step_name="${step_name}", baseline="<new SHA>") again.\n\n${result.review}`;
+              } else {
+                text = `REVISE\n\n${result.review}`;
+              }
+              break;
             case "RETHINK": text = `RETHINK\n\n${result.review}`; break;
             default: text = "UNAVAILABLE — reviewer did not produce a usable verdict.";
           }

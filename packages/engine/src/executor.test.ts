@@ -29,6 +29,7 @@ vi.mock("node:fs", () => ({
 
 import { TaskExecutor, buildExecutionPrompt } from "./executor.js";
 import { createKbAgent } from "./pi.js";
+import { reviewStep as mockedReviewStepFn } from "./reviewer.js";
 import { execSync } from "node:child_process";
 import { findWorktreeUser, aiMergeTask } from "./merger.js";
 import { WorktreePool } from "./worktree-pool.js";
@@ -1010,5 +1011,281 @@ describe("TaskExecutor pause behavior", () => {
     // Only KB-002 should be resumed (KB-001 is paused)
     expect(store.logEntry).toHaveBeenCalledWith("KB-002", "Resumed after engine restart");
     expect(store.logEntry).not.toHaveBeenCalledWith("KB-001", expect.anything());
+  });
+});
+
+// ── Code review verdict enforcement tests ────────────────────────────
+
+const mockedReviewStep = vi.mocked(mockedReviewStepFn);
+
+/**
+ * Helper: executes a task and captures the custom tools passed to createKbAgent.
+ * Returns a map of tool name → tool execute function for direct testing.
+ */
+async function captureTools(): Promise<Record<string, (id: string, params: any) => Promise<any>>> {
+  const store = createMockStore();
+  store.updateStep.mockResolvedValue({
+    steps: [
+      { name: "Preflight", status: "done" },
+      { name: "Implement", status: "in-progress" },
+      { name: "Testing", status: "pending" },
+    ],
+  });
+  mockedExistsSync.mockReturnValue(true);
+
+  let capturedTools: any[] = [];
+  mockedCreateHaiAgent.mockImplementation(async (opts: any) => {
+    capturedTools = opts.customTools || [];
+    return {
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any;
+  });
+
+  const executor = new TaskExecutor(store, "/tmp/test");
+  await executor.execute({
+    id: "KB-TEST",
+    title: "Test",
+    description: "Test",
+    column: "in-progress",
+    dependencies: [],
+    steps: [],
+    currentStep: 0,
+    log: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  const tools: Record<string, any> = {};
+  for (const t of capturedTools) {
+    tools[t.name] = t.execute;
+  }
+  return tools;
+}
+
+describe("Code review verdict tracking", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+  });
+
+  it("code review REVISE sets tracking state", async () => {
+    mockedReviewStep.mockResolvedValue({
+      verdict: "REVISE",
+      review: "Fix the bug",
+      summary: "Needs fixes",
+    });
+
+    const tools = await captureTools();
+    const result = await tools.review_step("call1", {
+      step: 1,
+      type: "code",
+      step_name: "Implement",
+      baseline: "abc123",
+    });
+
+    expect(result.content[0].text).toContain("REVISE");
+    expect(result.content[0].text).toContain("cannot be marked done");
+
+    // Now task_update(step=1, status="done") should be blocked
+    const updateResult = await tools.task_update("call2", { step: 1, status: "done" });
+    expect(updateResult.content[0].text).toContain("Cannot mark Step 1 as done");
+    expect(updateResult.content[0].text).toContain("REVISE");
+  });
+
+  it("code review APPROVE clears tracking state", async () => {
+    // First: REVISE
+    mockedReviewStep.mockResolvedValue({
+      verdict: "REVISE",
+      review: "Fix the bug",
+      summary: "Needs fixes",
+    });
+
+    const tools = await captureTools();
+    await tools.review_step("call1", {
+      step: 1,
+      type: "code",
+      step_name: "Implement",
+      baseline: "abc123",
+    });
+
+    // Verify it's blocked
+    const blocked = await tools.task_update("call2", { step: 1, status: "done" });
+    expect(blocked.content[0].text).toContain("Cannot mark Step 1 as done");
+
+    // Now: APPROVE
+    mockedReviewStep.mockResolvedValue({
+      verdict: "APPROVE",
+      review: "Looks good",
+      summary: "All good",
+    });
+
+    await tools.review_step("call3", {
+      step: 1,
+      type: "code",
+      step_name: "Implement",
+      baseline: "def456",
+    });
+
+    // Now task_update should succeed
+    const updateResult = await tools.task_update("call4", { step: 1, status: "done" });
+    expect(updateResult.content[0].text).toContain("→ done");
+  });
+
+  it("plan review REVISE does NOT set tracking state", async () => {
+    mockedReviewStep.mockResolvedValue({
+      verdict: "REVISE",
+      review: "Reconsider approach",
+      summary: "Plan issues",
+    });
+
+    const tools = await captureTools();
+    const result = await tools.review_step("call1", {
+      step: 1,
+      type: "plan",
+      step_name: "Implement",
+    });
+
+    // Plan REVISE should use the non-enforced text format
+    expect(result.content[0].text).toContain("REVISE");
+    expect(result.content[0].text).not.toContain("cannot be marked done");
+
+    // task_update should still work (plan reviews are advisory)
+    const updateResult = await tools.task_update("call2", { step: 1, status: "done" });
+    expect(updateResult.content[0].text).toContain("→ done");
+  });
+});
+
+describe("Code review verdict enforcement - task_update blocking", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedExistsSync.mockReturnValue(true);
+  });
+
+  it("task_update(status='done') is rejected when last code review was REVISE", async () => {
+    mockedReviewStep.mockResolvedValue({
+      verdict: "REVISE",
+      review: "Fix issues",
+      summary: "Needs work",
+    });
+
+    const tools = await captureTools();
+    await tools.review_step("call1", {
+      step: 1,
+      type: "code",
+      step_name: "Implement",
+      baseline: "abc",
+    });
+
+    const result = await tools.task_update("call2", { step: 1, status: "done" });
+    expect(result.content[0].text).toContain("Cannot mark Step 1 as done");
+    expect(result.content[0].text).toContain("review_step");
+  });
+
+  it("task_update succeeds after a subsequent APPROVE", async () => {
+    const tools = await captureTools();
+
+    // REVISE first
+    mockedReviewStep.mockResolvedValue({ verdict: "REVISE", review: "Fix", summary: "Bad" });
+    await tools.review_step("c1", { step: 1, type: "code", step_name: "Impl", baseline: "a" });
+
+    // Then APPROVE
+    mockedReviewStep.mockResolvedValue({ verdict: "APPROVE", review: "OK", summary: "Good" });
+    await tools.review_step("c2", { step: 1, type: "code", step_name: "Impl", baseline: "b" });
+
+    const result = await tools.task_update("c3", { step: 1, status: "done" });
+    expect(result.content[0].text).toContain("→ done");
+  });
+
+  it("task_update succeeds when no code review was requested (review level 0)", async () => {
+    const tools = await captureTools();
+
+    // No review_step calls at all
+    const result = await tools.task_update("c1", { step: 1, status: "done" });
+    expect(result.content[0].text).toContain("→ done");
+  });
+
+  it("plan-only REVISE does NOT block advancement", async () => {
+    mockedReviewStep.mockResolvedValue({ verdict: "REVISE", review: "Rethink", summary: "Plan issue" });
+
+    const tools = await captureTools();
+    await tools.review_step("c1", { step: 1, type: "plan", step_name: "Impl" });
+
+    const result = await tools.task_update("c2", { step: 1, status: "done" });
+    expect(result.content[0].text).toContain("→ done");
+  });
+
+  it("multiple steps tracked independently (REVISE on step 1 doesn't block step 2)", async () => {
+    mockedReviewStep.mockResolvedValue({ verdict: "REVISE", review: "Fix", summary: "Bad" });
+
+    const tools = await captureTools();
+    await tools.review_step("c1", { step: 1, type: "code", step_name: "Step1", baseline: "a" });
+
+    // Step 1 is blocked
+    const blocked = await tools.task_update("c2", { step: 1, status: "done" });
+    expect(blocked.content[0].text).toContain("Cannot mark Step 1 as done");
+
+    // Step 2 is NOT blocked (no review for step 2)
+    const allowed = await tools.task_update("c3", { step: 2, status: "done" });
+    expect(allowed.content[0].text).toContain("→ done");
+  });
+
+  it("REVISE tool response text includes re-review instructions", async () => {
+    mockedReviewStep.mockResolvedValue({ verdict: "REVISE", review: "Bug found", summary: "Issues" });
+
+    const tools = await captureTools();
+    const result = await tools.review_step("c1", { step: 1, type: "code", step_name: "Implement", baseline: "abc" });
+
+    expect(result.content[0].text).toContain("cannot be marked done");
+    expect(result.content[0].text).toContain("review_step");
+    expect(result.content[0].text).toContain('type="code"');
+  });
+
+  it("EXECUTOR_SYSTEM_PROMPT contains code review enforcement language", async () => {
+    // Capture the system prompt passed to createKbAgent
+    let capturedSystemPrompt = "";
+    mockedCreateHaiAgent.mockImplementation(async (opts: any) => {
+      capturedSystemPrompt = opts.systemPrompt || "";
+      return {
+        session: {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const store = createMockStore();
+    const executor = new TaskExecutor(store, "/tmp/test");
+    await executor.execute({
+      id: "KB-SYS",
+      title: "Test",
+      description: "Test",
+      column: "in-progress",
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Verify enforcement language is present in system prompt
+    expect(capturedSystemPrompt).toContain("enforced");
+    expect(capturedSystemPrompt).toContain("will be rejected until the code review passes");
+    expect(capturedSystemPrompt).toContain("REVISE (plan review)");
+    expect(capturedSystemPrompt).toContain("advisory");
+  });
+
+  it("task_update with non-done status is not blocked by REVISE", async () => {
+    mockedReviewStep.mockResolvedValue({ verdict: "REVISE", review: "Fix", summary: "Bad" });
+
+    const tools = await captureTools();
+    await tools.review_step("c1", { step: 1, type: "code", step_name: "Step1", baseline: "a" });
+
+    // "in-progress" should still work even with REVISE
+    const result = await tools.task_update("c2", { step: 1, status: "in-progress" });
+    expect(result.content[0].text).toContain("→ in-progress");
   });
 });
