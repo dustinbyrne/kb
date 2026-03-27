@@ -197,7 +197,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                   }
                 }}
               />
-              {prefixError && <small className="field-error" style={{ color: "var(--color-error, #e74c3c)" }}>{prefixError}</small>}
+              {prefixError && <small className="field-error">{prefixError}</small>}
               {!prefixError && <small>Prefix for new task IDs (e.g. HAI, PROJ)</small>}
             </div>
           </>
@@ -215,9 +215,9 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
           <>
             <h4 className="settings-section-heading">Model</h4>
             {modelsLoading ? (
-              <div style={{ padding: "8px 0" }}>Loading available models…</div>
+              <div className="settings-empty-state">Loading available models…</div>
             ) : availableModels.length === 0 ? (
-              <div style={{ padding: "8px 0", color: "var(--color-muted, #888)" }}>
+              <div className="settings-empty-state settings-muted">
                 No models available. Configure authentication first.
               </div>
             ) : (
@@ -288,7 +288,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="groupOverlappingFiles" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="groupOverlappingFiles" className="checkbox-label">
                 <input
                   id="groupOverlappingFiles"
                   type="checkbox"
@@ -335,7 +335,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               <small>Shell command to run in each new worktree after creation</small>
             </div>
             <div className="form-group">
-              <label htmlFor="recycleWorktrees" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="recycleWorktrees" className="checkbox-label">
                 <input
                   id="recycleWorktrees"
                   type="checkbox"
@@ -387,7 +387,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
           <>
             <h4 className="settings-section-heading">Merge</h4>
             <div className="form-group">
-              <label htmlFor="autoMerge" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="autoMerge" className="checkbox-label">
                 <input
                   id="autoMerge"
                   type="checkbox"
@@ -401,7 +401,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
               <small>When enabled, tasks that pass review are automatically merged into the main branch</small>
             </div>
             <div className="form-group">
-              <label htmlFor="includeTaskIdInCommit" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <label htmlFor="includeTaskIdInCommit" className="checkbox-label">
                 <input
                   id="includeTaskIdInCommit"
                   type="checkbox"
@@ -421,25 +421,21 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
           <>
             <h4 className="settings-section-heading">Authentication</h4>
             {authLoading ? (
-              <div style={{ padding: "8px 0" }}>Loading authentication status…</div>
+              <div className="settings-empty-state">Loading authentication status…</div>
             ) : authProviders.length === 0 ? (
-              <div style={{ padding: "8px 0", color: "var(--color-muted, #888)" }}>
+              <div className="settings-empty-state settings-muted">
                 No OAuth providers available
               </div>
             ) : (
               authProviders.map((provider) => (
-                <div key={provider.id} className="form-group" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div>
+                <div key={provider.id} className="auth-provider-row">
+                  <div className="auth-provider-info">
                     <strong>{provider.name}</strong>
                     <span
-                      style={{ marginLeft: "8px" }}
                       data-testid={`auth-status-${provider.id}`}
+                      className={`auth-status-badge ${provider.authenticated ? "authenticated" : "not-authenticated"}`}
                     >
-                      {provider.authenticated ? (
-                        <span style={{ color: "var(--color-success, #27ae60)" }}>✓ Authenticated</span>
-                      ) : (
-                        <span style={{ color: "var(--color-error, #e74c3c)" }}>✗ Not authenticated</span>
-                      )}
+                      {provider.authenticated ? "✓ Authenticated" : "✗ Not authenticated"}
                     </span>
                   </div>
                   <div>
@@ -466,7 +462,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
                 </div>
               ))
             )}
-            <small style={{ display: "block", marginTop: "8px" }}>
+            <small className="auth-hint">
               Login and logout take effect immediately — no need to save.
             </small>
           </>
@@ -484,7 +480,7 @@ export function SettingsModal({ onClose, addToast }: SettingsModalProps) {
           </button>
         </div>
         {loading ? (
-          <div style={{ padding: "20px", textAlign: "center" }}>Loading…</div>
+          <div className="settings-empty-state settings-loading">Loading…</div>
         ) : (
           <div className="settings-layout">
             <nav className="settings-sidebar">

@@ -373,6 +373,69 @@ describe("SettingsModal", () => {
     expect(addToast).toHaveBeenCalledWith("Logged out", "success");
   });
 
+  it("auth status badges have proper class names", async () => {
+    (fetchAuthStatus as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      providers: [
+        { id: "anthropic", name: "Anthropic", authenticated: true },
+        { id: "github", name: "GitHub", authenticated: false },
+      ],
+    });
+
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    const authBadge = screen.getByTestId("auth-status-anthropic");
+    expect(authBadge.className).toContain("auth-status-badge");
+    expect(authBadge.className).toContain("authenticated");
+
+    const unauthBadge = screen.getByTestId("auth-status-github");
+    expect(unauthBadge.className).toContain("auth-status-badge");
+    expect(unauthBadge.className).toContain("not-authenticated");
+  });
+
+  it("auth provider rows use auth-provider-row class", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Authentication"));
+    await waitFor(() => expect(fetchAuthStatus).toHaveBeenCalled());
+
+    const providerRow = screen.getByText("Anthropic").closest(".auth-provider-row");
+    expect(providerRow).toBeTruthy();
+  });
+
+  it("model section renders select element", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Model"));
+    await waitFor(() => expect(fetchModels).toHaveBeenCalled());
+
+    const select = screen.getByLabelText("Default Model") as HTMLSelectElement;
+    expect(select.tagName).toBe("SELECT");
+  });
+
+  it("checkbox labels use checkbox-label class", async () => {
+    render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("Scheduling"));
+    const label = screen.getByText("Serialize tasks with overlapping files");
+    expect(label.className).toContain("checkbox-label");
+  });
+
+  it("no inline style attributes remain on SettingsModal elements", async () => {
+    const { container } = render(<SettingsModal onClose={onClose} addToast={addToast} />);
+    await waitFor(() => expect(fetchSettings).toHaveBeenCalled());
+
+    // Check that no elements in the settings content have inline styles
+    const elementsWithStyle = container.querySelectorAll("[style]");
+    expect(elementsWithStyle.length).toBe(0);
+  });
+
   it("shows loading state during login", async () => {
     // Make loginProvider hang
     (loginProvider as ReturnType<typeof vi.fn>).mockReturnValue(new Promise(() => {}));
