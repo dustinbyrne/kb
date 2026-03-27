@@ -611,4 +611,42 @@ describe("TaskStore", () => {
       expect(logs[4].text).toBe("chunk 4");
     });
   });
+
+  describe("columnMovedAt", () => {
+    it("createTask sets columnMovedAt", async () => {
+      const before = new Date().toISOString();
+      const task = await store.createTask({ description: "test columnMovedAt" });
+      const after = new Date().toISOString();
+      expect(task.columnMovedAt).toBeDefined();
+      expect(task.columnMovedAt! >= before).toBe(true);
+      expect(task.columnMovedAt! <= after).toBe(true);
+    });
+
+    it("moveTask sets columnMovedAt to a recent ISO timestamp", async () => {
+      const task = await store.createTask({ description: "move test", column: "triage" });
+      const originalMovedAt = task.columnMovedAt;
+
+      // Small delay to ensure timestamp differs
+      await new Promise((r) => setTimeout(r, 10));
+
+      const before = new Date().toISOString();
+      const moved = await store.moveTask(task.id, "todo");
+      const after = new Date().toISOString();
+
+      expect(moved.columnMovedAt).toBeDefined();
+      expect(moved.columnMovedAt! >= before).toBe(true);
+      expect(moved.columnMovedAt! <= after).toBe(true);
+      expect(moved.columnMovedAt).not.toBe(originalMovedAt);
+    });
+
+    it("updateTask does NOT change columnMovedAt", async () => {
+      const task = await store.createTask({ description: "no change test" });
+      const originalMovedAt = task.columnMovedAt;
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      const updated = await store.updateTask(task.id, { title: "new title" });
+      expect(updated.columnMovedAt).toBe(originalMovedAt);
+    });
+  });
 });

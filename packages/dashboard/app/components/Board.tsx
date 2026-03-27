@@ -24,7 +24,18 @@ export function Board({ tasks, maxConcurrent, onMoveTask, onOpenDetail, addToast
         <Column
           key={col}
           column={col}
-          tasks={tasks.filter((t) => t.column === col)}
+          tasks={tasks
+            .filter((t) => t.column === col)
+            .sort((a, b) => {
+              // Tasks with columnMovedAt sort descending (most recent first)
+              // Tasks without it (legacy) fall to the bottom, sorted by createdAt ascending
+              if (a.columnMovedAt && b.columnMovedAt) {
+                return b.columnMovedAt.localeCompare(a.columnMovedAt);
+              }
+              if (a.columnMovedAt && !b.columnMovedAt) return -1;
+              if (!a.columnMovedAt && b.columnMovedAt) return 1;
+              return a.createdAt.localeCompare(b.createdAt);
+            })}
           allTasks={tasks}
           maxConcurrent={maxConcurrent}
           onMoveTask={onMoveTask}
