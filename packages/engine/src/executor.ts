@@ -79,6 +79,9 @@ You have tools to report progress. The board updates in real-time.
 **Logging important actions:** \`task_log(message="what happened")\`
 
 **Out-of-scope work found during execution:** \`task_create(description="what needs doing")\`
+When creating multiple related tasks, declare dependencies between them:
+\`task_create(description="load door sounds", dependencies=[])\` → returns KB-050
+\`task_create(description="play sound on door open/close", dependencies=["KB-050"])\`
 
 ## Cross-model review via review_step tool
 
