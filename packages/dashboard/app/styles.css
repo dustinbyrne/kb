@@ -64,6 +64,18 @@ html, body {
   color: var(--text);
   background: var(--border);
 }
+.btn-icon--paused {
+  color: var(--triage);
+}
+.btn-icon--paused:hover {
+  color: var(--triage);
+}
+.btn-icon--stopped {
+  color: var(--color-error);
+}
+.btn-icon--stopped:hover {
+  color: var(--color-error);
+}
 .logo { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
 .logo-sub { font-size: 13px; color: var(--text-muted); font-weight: 400; }
 

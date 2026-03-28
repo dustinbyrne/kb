@@ -142,8 +142,8 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
         try {
           // Re-check autoMerge and globalPause before each merge (setting may have been toggled)
           const settings = await store.getSettings();
-          if (settings.globalPause) {
-            console.log(`[auto-merge] Skipping ${taskId} — global pause active`);
+          if (settings.globalPause || settings.enginePaused) {
+            console.log(`[auto-merge] Skipping ${taskId} — ${settings.globalPause ? "global pause" : "engine paused"} active`);
             continue;
           }
           if (!settings.autoMerge) {
@@ -180,7 +180,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
     if (task.paused) return;
     try {
       const settings = await store.getSettings();
-      if (settings.globalPause) return;
+      if (settings.globalPause || settings.enginePaused) return;
       if (!settings.autoMerge) return;
       enqueueMerge(task.id);
     } catch { /* ignore settings read errors */ }
@@ -273,6 +273,31 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
       }
     });
 
+    // ── Immediate engine-unpause: resume orphans + merge sweep ────────
+    // When enginePaused transitions from true → false, same resume logic
+    // as globalPause unpause: pick up orphaned tasks and sweep merge queue.
+    store.on("settings:updated", async ({ settings: s, previous: prev }) => {
+      if (prev.enginePaused && !s.enginePaused) {
+        console.log("[engine] Engine unpaused — resuming agentic activity");
+        cachedMaxConcurrent = s.maxConcurrent ?? cachedMaxConcurrent;
+
+        executor.resumeOrphaned().catch((err) =>
+          console.error("[engine] Failed to resume orphaned tasks on engine unpause:", err),
+        );
+
+        if (s.autoMerge) {
+          try {
+            const tasks = await store.listTasks();
+            for (const t of tasks) {
+              if (t.column === "in-review" && !t.paused) {
+                enqueueMerge(t.id);
+              }
+            }
+          } catch { /* ignore errors in unpause sweep */ }
+        }
+      }
+    });
+
     // ── Periodic retry: catch failed merges on each poll cycle ────────
     // Uses a setTimeout chain so the interval dynamically follows
     // settings.pollIntervalMs without requiring an engine restart.
@@ -285,7 +310,7 @@ export async function runDashboard(port: number, opts: { open?: boolean } = {}) 
           const s = await store.getSettings();
           // Refresh the cached limit so the semaphore picks up live changes
           cachedMaxConcurrent = s.maxConcurrent;
-          if (!s.globalPause && s.autoMerge) {
+          if (!s.globalPause && !s.enginePaused && s.autoMerge) {
             const tasks = await store.listTasks();
             for (const t of tasks) {
               if (t.column === "in-review" && !t.paused) {

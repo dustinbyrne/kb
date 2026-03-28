@@ -95,10 +95,19 @@ export interface TaskCreateInput {
 }
 
 export interface Settings {
-  /** When true, all automated agent activity is halted — triage specification,
-   *  task scheduling, execution, and auto-merge. Acts as a global emergency stop
-   *  for the entire AI engine. Individual per-task pause flags are unaffected. */
+  /** Hard stop: when true, all automated agent activity is **immediately**
+   *  terminated — active triage, execution, and merge agent sessions are
+   *  killed, and the scheduler stops dispatching new work. Acts as a
+   *  global emergency stop for the entire AI engine.
+   *  Individual per-task pause flags are unaffected. */
   globalPause?: boolean;
+  /** Soft pause: when true, the scheduler and triage processor stop
+   *  dispatching **new** work (scheduling, triage specification, and
+   *  auto-merge), but in-flight agent sessions are allowed to finish
+   *  gracefully. Use this to drain the queue without killing active work.
+   *  Has no effect when {@link globalPause} is also true (hard stop
+   *  takes precedence). */
+  enginePaused?: boolean;
   /** Maximum number of concurrent AI agents across all activity types
    *  (triage specification, task execution, and merge operations). */
   maxConcurrent: number;
@@ -142,6 +151,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   globalPause: false,
+  enginePaused: false,
   maxConcurrent: 2,
   maxWorktrees: 4,
   pollIntervalMs: 15000,

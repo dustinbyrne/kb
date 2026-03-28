@@ -823,6 +823,164 @@ describe("TriageProcessor immediate resume on unpause via settings:updated", () 
   });
 });
 
+describe("TriageProcessor enginePaused (soft pause)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("does not specify any tasks when enginePaused is true", async () => {
+    const triageTask = {
+      id: "KB-001",
+      title: "Test",
+      description: "Test task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([triageTask]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: true,
+    });
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+    await (triage as any).poll();
+
+    // Agent should never be created when engine is soft-paused
+    expect(mockedCreateHaiAgent).not.toHaveBeenCalled();
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("resumes triage when enginePaused is toggled back to false", async () => {
+    const triageTask = {
+      id: "KB-002",
+      title: "Normal",
+      description: "Normal task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([triageTask]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: true,
+    });
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    // First poll — engine paused, nothing happens
+    await (triage as any).poll();
+    expect(mockedCreateHaiAgent).not.toHaveBeenCalled();
+
+    // Toggle enginePaused off
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: false,
+    });
+
+    // Second poll — should process tasks
+    await (triage as any).poll();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "specifying" });
+  });
+
+  it("calls poll() immediately when enginePaused transitions from true to false", async () => {
+    const triageTask = {
+      id: "KB-001",
+      title: "Test",
+      description: "Test task",
+      column: "triage" as const,
+      dependencies: [],
+      steps: [],
+      currentStep: 0,
+      log: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const store = createMockStore([triageTask]);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: false,
+    });
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    // Fire the settings:updated event: enginePaused true → false
+    store._trigger("settings:updated", {
+      settings: { enginePaused: false },
+      previous: { enginePaused: true },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // poll() should have been called → triage task processed
+    expect(store.updateTask).toHaveBeenCalledWith("KB-001", { status: "specifying" });
+  });
+
+  it("does NOT call poll() when enginePaused stays false (false → false)", async () => {
+    const store = createMockStore([]);
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    store._trigger("settings:updated", {
+      settings: { enginePaused: false },
+      previous: { enginePaused: false },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(store.listTasks).not.toHaveBeenCalled();
+  });
+});
+
 describe("buildSpecificationPrompt", () => {
   it("includes project commands when testCommand is set", () => {
     const task = createMockTaskDetail();

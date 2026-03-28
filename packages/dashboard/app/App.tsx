@@ -18,6 +18,7 @@ function AppInner() {
   const [maxConcurrent, setMaxConcurrent] = useState(2);
   const [autoMerge, setAutoMerge] = useState(false);
   const [globalPaused, setGlobalPaused] = useState(false);
+  const [enginePaused, setEnginePaused] = useState(false);
   const { tasks, createTask, moveTask, deleteTask, mergeTask, retryTask } = useTasks();
 
   useEffect(() => {
@@ -28,6 +29,7 @@ function AppInner() {
       .then((s) => {
         setAutoMerge(!!s.autoMerge);
         setGlobalPaused(!!s.globalPause);
+        setEnginePaused(!!s.enginePaused);
       })
       .catch(() => {/* keep default */});
     fetchAuthStatus()
@@ -73,6 +75,16 @@ function AppInner() {
     }
   }, [globalPaused]);
 
+  const handleToggleEnginePause = useCallback(async () => {
+    const next = !enginePaused;
+    setEnginePaused(next);
+    try {
+      await updateSettings({ enginePaused: next });
+    } catch {
+      setEnginePaused(!next); // revert on failure
+    }
+  }, [enginePaused]);
+
   const handleDetailOpen = useCallback((task: TaskDetail) => {
     setDetailTask(task);
   }, []);
@@ -84,7 +96,9 @@ function AppInner() {
       <Header
         onOpenSettings={() => setSettingsOpen(true)}
         globalPaused={globalPaused}
+        enginePaused={enginePaused}
         onToggleGlobalPause={handleToggleGlobalPause}
+        onToggleEnginePause={handleToggleEnginePause}
       />
       <Board
         tasks={tasks}

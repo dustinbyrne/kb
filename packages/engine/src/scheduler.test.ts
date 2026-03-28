@@ -1069,6 +1069,142 @@ describe("Scheduler in-review worktrees do not count against maxWorktrees", () =
   });
 });
 
+describe("Scheduler enginePaused (soft pause)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function runSchedule(scheduler: Scheduler): Promise<void> {
+    (scheduler as any).running = true;
+    await scheduler.schedule();
+  }
+
+  it("does not move any tasks when enginePaused is true", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "todo" }),
+      makeTask({ id: "KB-002", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+
+    expect(store.moveTask).not.toHaveBeenCalled();
+    expect(store.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("resumes scheduling when enginePaused is toggled back to false", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).not.toHaveBeenCalled();
+
+    // Toggle enginePaused off
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: false,
+    });
+
+    await runSchedule(scheduler);
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "in-progress");
+  });
+
+  it("logs once when entering engine paused state", async () => {
+    const tasks = [makeTask({ id: "KB-001", column: "todo" })];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: true,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await runSchedule(scheduler);
+    await runSchedule(scheduler);
+    await runSchedule(scheduler);
+
+    const pauseMessages = logSpy.mock.calls.filter(
+      (args) =>
+        typeof args[0] === "string" &&
+        args[0].includes("Engine paused"),
+    );
+    expect(pauseMessages).toHaveLength(1);
+    logSpy.mockRestore();
+  });
+
+  it("calls schedule() immediately when enginePaused transitions from true to false", async () => {
+    const tasks = [
+      makeTask({ id: "KB-001", column: "todo" }),
+    ];
+    const store = createMockStore(tasks);
+    store.getSettings.mockResolvedValue({
+      maxConcurrent: 2,
+      maxWorktrees: 4,
+      pollIntervalMs: 15000,
+      groupOverlappingFiles: false,
+      autoMerge: false,
+      enginePaused: false,
+    });
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+    (scheduler as any).running = true;
+
+    // Fire the settings:updated event: enginePaused true → false
+    store._trigger("settings:updated", {
+      settings: { enginePaused: false },
+      previous: { enginePaused: true },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "in-progress");
+  });
+
+  it("does NOT call schedule() when enginePaused stays false (false → false)", async () => {
+    const store = createMockStore();
+    const scheduler = new Scheduler(store, { maxConcurrent: 2 });
+    (scheduler as any).running = true;
+
+    store._trigger("settings:updated", {
+      settings: { enginePaused: false },
+      previous: { enginePaused: false },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(store.listTasks).not.toHaveBeenCalled();
+    expect(store.moveTask).not.toHaveBeenCalled();
+  });
+});
+
 describe("Scheduler semaphore-aware slot counting", () => {
   beforeEach(() => {
     vi.clearAllMocks();

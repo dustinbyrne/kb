@@ -86,6 +86,8 @@ vi.mock("@kb/engine", async (importOriginal) => {
       stop: vi.fn(),
     })),
     aiMergeTask: vi.fn().mockImplementation(() => Promise.resolve({ merged: true })),
+    scanIdleWorktrees: vi.fn().mockResolvedValue([]),
+    cleanupOrphanedWorktrees: vi.fn().mockResolvedValue(0),
   };
 });
 
@@ -454,5 +456,118 @@ describe("runDashboard — port fallback on EADDRINUSE", () => {
     expect(consoleSpy).toHaveBeenCalledWith(
       `⚠ Port 4040 in use, using ${fallbackPort} instead`,
     );
+  });
+});
+
+describe("runDashboard — enginePaused (soft pause)", () => {
+  let mockStore: ReturnType<typeof makeMockStore>;
+
+  beforeEach(async () => {
+    capturedExecutorOpts = undefined;
+    vi.clearAllMocks();
+    mockStore = makeMockStore();
+    const { TaskStore } = await import("@kb/core");
+    (TaskStore as ReturnType<typeof vi.fn>).mockImplementation(() => mockStore);
+    const engine = await import("@kb/engine");
+    (engine.aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve({ merged: true }),
+    );
+    (engine.TaskExecutor as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_store: unknown, _cwd: unknown, opts: unknown) => {
+        capturedExecutorOpts = opts as Record<string, unknown>;
+        return { resumeOrphaned: vi.fn().mockResolvedValue(undefined) };
+      },
+    );
+  });
+
+  it("does not enqueue tasks for auto-merge when enginePaused on task:moved", async () => {
+    mockStore.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 2,
+      autoMerge: true,
+      pollIntervalMs: 60_000,
+      enginePaused: true,
+    });
+
+    await runDashboard(0, { open: false });
+
+    const { aiMergeTask } = await import("@kb/engine");
+
+    // Emit task:moved
+    mockStore.emit("task:moved", {
+      task: { id: "KB-EP1", column: "in-review", paused: false },
+      from: "in-progress",
+      to: "in-review",
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(aiMergeTask).not.toHaveBeenCalled();
+  });
+
+  it("calls executor.resumeOrphaned() when enginePaused transitions true → false", async () => {
+    const { TaskExecutor } = await import("@kb/engine");
+    const resumeOrphaned = vi.fn().mockResolvedValue(undefined);
+    (TaskExecutor as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_store: unknown, _cwd: unknown, opts: unknown) => {
+        capturedExecutorOpts = opts as Record<string, unknown>;
+        return { resumeOrphaned };
+      },
+    );
+
+    await runDashboard(0, { open: false });
+
+    // Clear the startup call
+    resumeOrphaned.mockClear();
+
+    // Trigger engine unpause event
+    mockStore.emit("settings:updated", {
+      settings: { enginePaused: false, maxConcurrent: 1, autoMerge: false },
+      previous: { enginePaused: true },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(resumeOrphaned).toHaveBeenCalled();
+  });
+
+  it("sweeps merge queue on engine unpause when autoMerge is enabled", async () => {
+    mockStore.getSettings.mockResolvedValue({
+      maxConcurrent: 1,
+      maxWorktrees: 2,
+      autoMerge: true,
+      pollIntervalMs: 60_000,
+      enginePaused: false,
+      globalPause: false,
+    });
+    mockStore.listTasks.mockResolvedValue([
+      { id: "KB-EP2", column: "in-review", paused: false },
+    ]);
+    mockStore.getTask = vi.fn().mockImplementation(async (id: string) => ({
+      id,
+      column: "in-review",
+      paused: false,
+    }));
+
+    const { aiMergeTask } = await import("@kb/engine");
+    (aiMergeTask as ReturnType<typeof vi.fn>).mockImplementation(() =>
+      Promise.resolve({ merged: true }),
+    );
+
+    await runDashboard(0, { open: false });
+
+    (aiMergeTask as ReturnType<typeof vi.fn>).mockClear();
+
+    mockStore.emit("settings:updated", {
+      settings: { enginePaused: false, maxConcurrent: 1, autoMerge: true },
+      previous: { enginePaused: true },
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const mergedIds = (aiMergeTask as ReturnType<typeof vi.fn>).mock.calls.map(
+      (call: any[]) => call[2],
+    );
+    expect(mergedIds).toContain("KB-EP2");
   });
 });

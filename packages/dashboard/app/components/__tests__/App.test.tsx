@@ -133,7 +133,7 @@ describe("App auto-open Settings on unauthenticated", () => {
   });
 });
 
-describe("App global pause", () => {
+describe("App global pause (hard stop)", () => {
   it("initializes global pause state from fetchSettings", async () => {
     (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ...defaultSettings,
@@ -142,13 +142,13 @@ describe("App global pause", () => {
 
     render(<App />);
 
-    // When globally paused, the button should show "Resume AI engine"
+    // When globally paused, the stop button should show "Start AI engine"
     await waitFor(() => {
-      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+      expect(screen.getByTitle("Start AI engine")).toBeTruthy();
     });
   });
 
-  it("shows Pause button when globalPause is false", async () => {
+  it("shows Stop button when globalPause is false", async () => {
     (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ...defaultSettings,
       globalPause: false,
@@ -157,7 +157,7 @@ describe("App global pause", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+      expect(screen.getByTitle("Stop AI engine")).toBeTruthy();
     });
   });
 
@@ -171,15 +171,15 @@ describe("App global pause", () => {
 
     // Wait for initial render
     await waitFor(() => {
-      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+      expect(screen.getByTitle("Stop AI engine")).toBeTruthy();
     });
 
-    // Click the pause button
-    fireEvent.click(screen.getByTitle("Pause AI engine"));
+    // Click the stop button
+    fireEvent.click(screen.getByTitle("Stop AI engine"));
 
-    // Should optimistically switch to "Resume" state
+    // Should optimistically switch to "Start" state
     await waitFor(() => {
-      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+      expect(screen.getByTitle("Start AI engine")).toBeTruthy();
     });
 
     // Should call updateSettings with globalPause: true
@@ -196,15 +196,68 @@ describe("App global pause", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+      expect(screen.getByTitle("Stop AI engine")).toBeTruthy();
     });
 
-    // Click the pause button — will fail
-    fireEvent.click(screen.getByTitle("Pause AI engine"));
+    // Click the stop button — will fail
+    fireEvent.click(screen.getByTitle("Stop AI engine"));
 
-    // Should revert back to "Pause" state after failure
+    // Should revert back to "Stop" state after failure
+    await waitFor(() => {
+      expect(screen.getByTitle("Stop AI engine")).toBeTruthy();
+    });
+  });
+});
+
+describe("App engine pause (soft pause)", () => {
+  it("initializes engine pause state from fetchSettings", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      enginePaused: true,
+    });
+
+    render(<App />);
+
+    // When engine is paused, the pause button should show "Resume AI engine"
+    await waitFor(() => {
+      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+    });
+  });
+
+  it("shows Pause button when enginePaused is false", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      enginePaused: false,
+    });
+
+    render(<App />);
+
     await waitFor(() => {
       expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
     });
+  });
+
+  it("toggles engine pause state and calls updateSettings", async () => {
+    (fetchSettings as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...defaultSettings,
+      enginePaused: false,
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Pause AI engine")).toBeTruthy();
+    });
+
+    // Click the pause button
+    fireEvent.click(screen.getByTitle("Pause AI engine"));
+
+    // Should optimistically switch to "Resume" state
+    await waitFor(() => {
+      expect(screen.getByTitle("Resume AI engine")).toBeTruthy();
+    });
+
+    // Should call updateSettings with enginePaused: true
+    expect(updateSettings).toHaveBeenCalledWith({ enginePaused: true });
   });
 });

@@ -184,6 +184,7 @@ export class TriageProcessor {
   private activePollMs: number | null = null;
   private processing = new Set<string>();
   private wasGlobalPaused = false;
+  private wasEnginePaused = false;
   /** Active agent sessions per task, used to terminate on global pause. */
   private activeSessions = new Map<string, { dispose: () => void }>();
   /** Tasks that were aborted due to global pause (to avoid reporting as errors). */
@@ -225,6 +226,22 @@ export class TriageProcessor {
      */
     store.on("settings:updated", ({ settings, previous }) => {
       if (previous.globalPause && !settings.globalPause && this.running) {
+        this.poll();
+      }
+    });
+
+    /**
+     * Immediate soft-unpause resume: when `enginePaused` transitions from
+     * `true` to `false`, trigger a triage poll right away instead of
+     * waiting for the next poll interval. Same pattern as the globalPause
+     * unpause handler above.
+     *
+     * Note: the agent-kill listener above only fires on `globalPause`
+     * transitions (hard stop). `enginePaused` (soft pause) lets in-flight
+     * agents finish gracefully.
+     */
+    store.on("settings:updated", ({ settings, previous }) => {
+      if (previous.enginePaused && !settings.enginePaused && this.running) {
         this.poll();
       }
     });
@@ -286,7 +303,7 @@ export class TriageProcessor {
       const settings = await this.store.getSettings();
       this.refreshPollInterval(settings.pollIntervalMs);
 
-      // Global pause: halt all triage activity
+      // Global pause (hard stop): halt all triage activity
       if (settings.globalPause) {
         if (!this.wasGlobalPaused) {
           triageLog.log("Global pause active — triage halted");
@@ -295,6 +312,16 @@ export class TriageProcessor {
         return;
       }
       this.wasGlobalPaused = false;
+
+      // Engine paused (soft pause): halt new triage work, but let agents finish
+      if (settings.enginePaused) {
+        if (!this.wasEnginePaused) {
+          triageLog.log("Engine paused — triage halted (in-flight agents continue)");
+          this.wasEnginePaused = true;
+        }
+        return;
+      }
+      this.wasEnginePaused = false;
 
       const tasks = await this.store.listTasks();
       const triageTasks = tasks.filter(

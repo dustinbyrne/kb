@@ -76,6 +76,8 @@ vi.mock("@kb/engine", async (importOriginal) => {
       stop: vi.fn(),
     })),
     aiMergeTask: vi.fn().mockResolvedValue({ merged: true }),
+    scanIdleWorktrees: vi.fn().mockResolvedValue([]),
+    cleanupOrphanedWorktrees: vi.fn().mockResolvedValue(0),
   };
 });
 

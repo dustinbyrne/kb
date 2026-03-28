@@ -76,6 +76,7 @@ export class Scheduler {
   private scheduling = false;
   private wasWorktreeLimited = false;
   private wasGlobalPaused = false;
+  private wasEnginePaused = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
   /** The interval (ms) of the currently active `setInterval` timer. */
   private activePollMs: number | null = null;
@@ -95,6 +96,18 @@ export class Scheduler {
      */
     this.store.on("settings:updated", ({ settings, previous }) => {
       if (previous.globalPause && !settings.globalPause && this.running) {
+        this.schedule();
+      }
+    });
+
+    /**
+     * Immediate soft-unpause resume: when `enginePaused` transitions from
+     * `true` to `false`, trigger a scheduling pass right away instead of
+     * waiting for the next poll interval. Same pattern as the globalPause
+     * unpause handler above.
+     */
+    this.store.on("settings:updated", ({ settings, previous }) => {
+      if (previous.enginePaused && !settings.enginePaused && this.running) {
         this.schedule();
       }
     });
@@ -197,7 +210,7 @@ export class Scheduler {
       // Refresh the poll interval if the persisted setting has changed
       this.refreshPollInterval(settings.pollIntervalMs);
 
-      // Global pause: halt all scheduling activity
+      // Global pause (hard stop): halt all scheduling activity
       if (settings.globalPause) {
         if (!this.wasGlobalPaused) {
           schedulerLog.log("Global pause active — scheduling halted");
@@ -206,6 +219,16 @@ export class Scheduler {
         return;
       }
       this.wasGlobalPaused = false;
+
+      // Engine paused (soft pause): halt new work dispatch, but let agents finish
+      if (settings.enginePaused) {
+        if (!this.wasEnginePaused) {
+          schedulerLog.log("Engine paused — scheduling halted (in-flight agents continue)");
+          this.wasEnginePaused = true;
+        }
+        return;
+      }
+      this.wasEnginePaused = false;
 
       // Count only in-progress tasks toward the worktree limit.
       // In-review tasks with worktrees are idle (waiting to merge) and
