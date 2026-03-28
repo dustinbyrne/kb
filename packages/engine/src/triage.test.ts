@@ -250,42 +250,31 @@ describe("TriageProcessor poll re-entrance guard", () => {
     vi.clearAllMocks();
   });
 
-  it("prevents overlapping poll() calls — second call is a no-op", async () => {
-    const store = createMockStore([
-      {
-        id: "KB-001",
-        title: "Test",
-        description: "Test",
-        column: "triage",
-        dependencies: [],
-        steps: [],
-        currentStep: 0,
-        log: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ]);
+  it("prevents overlapping poll() calls while discovery is in progress", async () => {
+    let resolveListTasks: (() => void) | undefined;
+    const store = createMockStore([]);
+    // Make listTasks slow so the first poll is still in the discovery phase
+    // when the second poll fires
+    store.listTasks.mockImplementation(
+      () =>
+        new Promise<any[]>((resolve) => {
+          resolveListTasks = () => resolve([]);
+        }),
+    );
 
-    // Make specifyTask slow so the first poll is still running when the second fires
-    let resolveAgent: (() => void) | undefined;
-    mockedCreateHaiAgent.mockImplementation(async () => {
-      await new Promise<void>((r) => {
-        resolveAgent = r;
-      });
-      return {
-        session: {
-          prompt: vi.fn().mockResolvedValue(undefined),
-          dispose: vi.fn(),
-        },
-      } as any;
-    });
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
 
     const triage = new TriageProcessor(store, "/tmp/test");
     (triage as any).running = true;
 
-    // Start first poll (will block in createKbAgent)
+    // Start first poll (will block in listTasks)
     const poll1 = (triage as any).poll();
-    // Allow microtasks to run so poll1 gets into specifyTask
+    // Allow microtasks to run so poll1 enters the try block
     await new Promise((r) => setTimeout(r, 10));
 
     // Start second poll — should return immediately due to guard
@@ -295,8 +284,8 @@ describe("TriageProcessor poll re-entrance guard", () => {
     // listTasks should only have been called once (first poll)
     expect(store.listTasks).toHaveBeenCalledTimes(1);
 
-    // Resolve the agent to let the first poll finish
-    resolveAgent?.();
+    // Resolve listTasks to let the first poll finish
+    resolveListTasks?.();
     await poll1;
   });
 
@@ -311,6 +300,182 @@ describe("TriageProcessor poll re-entrance guard", () => {
 
     // Both polls should have called listTasks (sequentially, guard released)
     expect(store.listTasks).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("TriageProcessor concurrent dispatch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("dispatches multiple triage tasks concurrently in a single poll cycle", async () => {
+    const tasks = [
+      { id: "KB-001", title: "T1", description: "T1", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: "KB-002", title: "T2", description: "T2", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: "KB-003", title: "T3", description: "T3", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ];
+    const store = createMockStore(tasks);
+
+    // Track which tasks are concurrently in-flight
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const resolvers: (() => void)[] = [];
+
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      return {
+        session: {
+          prompt: vi.fn().mockImplementation(async () => {
+            await new Promise<void>((r) => resolvers.push(r));
+            concurrent--;
+          }),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const sem = new AgentSemaphore(3); // Allow all 3 tasks to run concurrently
+    const triage = new TriageProcessor(store, "/tmp/test", { semaphore: sem });
+    (triage as any).running = true;
+
+    // poll() should return quickly (non-blocking dispatch)
+    await (triage as any).poll();
+
+    // All 3 tasks should have been dispatched concurrently
+    await new Promise((r) => setTimeout(r, 50));
+    expect(maxConcurrent).toBe(3);
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(3);
+
+    // Resolve all agents
+    resolvers.forEach((r) => r());
+    await new Promise((r) => setTimeout(r, 50));
+  });
+
+  it("polling flag resets before specifyTask calls finish", async () => {
+    const tasks = [
+      { id: "KB-001", title: "T1", description: "T1", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ];
+    const store = createMockStore(tasks);
+
+    let resolveAgent: (() => void) | undefined;
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      return {
+        session: {
+          prompt: vi.fn().mockImplementation(
+            () => new Promise<void>((r) => { resolveAgent = r; }),
+          ),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const triage = new TriageProcessor(store, "/tmp/test");
+    (triage as any).running = true;
+
+    // poll() should return quickly even though specifyTask is still running
+    await (triage as any).poll();
+
+    // polling flag should be false (reset) even though the agent is still working
+    expect((triage as any).polling).toBe(false);
+
+    // Resolve the agent to clean up
+    resolveAgent?.();
+    await new Promise((r) => setTimeout(r, 50));
+  });
+
+  it("semaphore still limits actual concurrency across concurrent dispatches", async () => {
+    const tasks = [
+      { id: "KB-001", title: "T1", description: "T1", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: "KB-002", title: "T2", description: "T2", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      { id: "KB-003", title: "T3", description: "T3", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+    ];
+    const store = createMockStore(tasks);
+
+    let concurrent = 0;
+    let maxConcurrent = 0;
+    const resolvers: (() => void)[] = [];
+
+    mockedCreateHaiAgent.mockImplementation(async () => {
+      concurrent++;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      return {
+        session: {
+          prompt: vi.fn().mockImplementation(async () => {
+            await new Promise<void>((r) => resolvers.push(r));
+            concurrent--;
+          }),
+          dispose: vi.fn(),
+        },
+      } as any;
+    });
+
+    const sem = new AgentSemaphore(1); // Only 1 slot
+    const triage = new TriageProcessor(store, "/tmp/test", { semaphore: sem });
+    (triage as any).running = true;
+
+    // poll() dispatches all 3 but semaphore only allows 1 at a time
+    await (triage as any).poll();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Only 1 agent should be running at a time
+    expect(maxConcurrent).toBe(1);
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(1);
+
+    // Resolve first, second gets its slot
+    resolvers[0]();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(2);
+    expect(maxConcurrent).toBe(1);
+
+    // Resolve second, third gets its slot
+    resolvers[1]();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(3);
+    expect(maxConcurrent).toBe(1);
+
+    // Resolve third
+    resolvers[2]();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sem.activeCount).toBe(0);
+  });
+
+  it("subsequent polls can discover new triage tasks while prior dispatches are still running", async () => {
+    const task1 = { id: "KB-001", title: "T1", description: "T1", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const task2 = { id: "KB-002", title: "T2", description: "T2", column: "triage" as const, dependencies: [], steps: [], currentStep: 0, log: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const store = createMockStore([task1]);
+
+    const resolvers: (() => void)[] = [];
+    mockedCreateHaiAgent.mockImplementation(async () => ({
+      session: {
+        prompt: vi.fn().mockImplementation(
+          () => new Promise<void>((r) => resolvers.push(r)),
+        ),
+        dispose: vi.fn(),
+      },
+    } as any));
+
+    const sem = new AgentSemaphore(5);
+    const triage = new TriageProcessor(store, "/tmp/test", { semaphore: sem });
+    (triage as any).running = true;
+
+    // First poll dispatches KB-001
+    await (triage as any).poll();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(1);
+
+    // A new task arrives — second poll should discover it
+    store.listTasks.mockResolvedValue([task1, task2]);
+
+    // Second poll runs (polling flag already reset) — KB-001 is in processing set,
+    // so only KB-002 is dispatched
+    await (triage as any).poll();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mockedCreateHaiAgent).toHaveBeenCalledTimes(2);
+
+    // Clean up
+    resolvers.forEach((r) => r());
+    await new Promise((r) => setTimeout(r, 50));
   });
 });
 
@@ -419,6 +584,8 @@ describe("TriageProcessor paused tasks", () => {
     const triage = new TriageProcessor(store, "/tmp/test");
     (triage as any).running = true;
     await (triage as any).poll();
+    // Allow dispatched specifyTask to run (non-blocking dispatch)
+    await new Promise((r) => setTimeout(r, 50));
 
     // Agent should be created for a non-paused task
     expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "specifying" });
@@ -518,6 +685,8 @@ describe("TriageProcessor globalPause", () => {
 
     // Second poll — should process tasks
     await (triage as any).poll();
+    // Allow dispatched specifyTask to run (non-blocking dispatch)
+    await new Promise((r) => setTimeout(r, 50));
     expect(store.updateTask).toHaveBeenCalledWith("KB-002", { status: "specifying" });
   });
 

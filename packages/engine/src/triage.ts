@@ -267,6 +267,16 @@ export class TriageProcessor {
     triageLog.log(`Poll interval updated to ${newIntervalMs}ms`);
   }
 
+  /**
+   * Discover triage tasks and dispatch `specifyTask()` for each one.
+   *
+   * **Concurrent dispatch:** `specifyTask()` calls are fired without awaiting,
+   * so multiple triage tasks can be specified concurrently (bounded by the
+   * shared `AgentSemaphore`). The `polling` re-entrance guard prevents
+   * overlapping discovery cycles, but resets as soon as dispatch completes —
+   * well before the dispatched tasks finish — so subsequent polls can discover
+   * newly arrived triage tasks promptly.
+   */
   private async poll(): Promise<void> {
     if (!this.running) return;
     if (this.polling) return;
@@ -292,7 +302,7 @@ export class TriageProcessor {
       );
 
       for (const task of triageTasks) {
-        await this.specifyTask(task);
+        void this.specifyTask(task);
       }
     } catch (err) {
       triageLog.error("Poll error:", err);
