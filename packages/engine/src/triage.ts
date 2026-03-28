@@ -307,7 +307,28 @@ export class TriageProcessor {
             await this.store.logEntry(task.id, `Duplicate of ${dupId} — closed`);
             await this.store.deleteTask(task.id);
           } else {
-            await this.store.updateTask(task.id, { status: null });
+            // Parse dependencies, size, and review level from the generated PROMPT.md
+            const parsedDeps = await this.store.parseDependenciesFromPrompt(task.id);
+            const taskUpdates: Record<string, any> = { status: null };
+
+            if (parsedDeps.length > 0) {
+              taskUpdates.dependencies = parsedDeps;
+              triageLog.log(`${task.id} dependencies: ${parsedDeps.join(", ")}`);
+            }
+
+            // Extract size (S|M|L) from front-matter
+            const sizeMatch = written.match(/^\*\*Size:\*\*\s+(S|M|L)\b/m);
+            if (sizeMatch) {
+              taskUpdates.size = sizeMatch[1] as "S" | "M" | "L";
+            }
+
+            // Extract review level from heading
+            const reviewMatch = written.match(/^##\s+Review\s+Level:\s+(\d+)/m);
+            if (reviewMatch) {
+              taskUpdates.reviewLevel = parseInt(reviewMatch[1], 10);
+            }
+
+            await this.store.updateTask(task.id, taskUpdates);
             await this.store.moveTask(task.id, "todo");
             triageLog.log(`✓ ${task.id} specified and moved to todo`);
             this.options.onSpecifyComplete?.(task);

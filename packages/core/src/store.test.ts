@@ -658,6 +658,105 @@ describe("TaskStore", () => {
     });
   });
 
+  describe("parseDependenciesFromPrompt", () => {
+    it("returns single dependency from PROMPT.md", async () => {
+      const task = await store.createTask({ description: "Task with dep" });
+      const dir = join(rootDir, ".kb", "tasks", task.id);
+      await writeFile(
+        join(dir, "PROMPT.md"),
+        `# ${task.id}: Task with dep
+
+## Dependencies
+
+- **Task:** KB-001 (must be complete first)
+
+## Steps
+
+### Step 0: Preflight
+- [ ] Check things
+`,
+      );
+
+      const deps = await store.parseDependenciesFromPrompt(task.id);
+      expect(deps).toEqual(["KB-001"]);
+    });
+
+    it("returns multiple dependencies in order", async () => {
+      const task = await store.createTask({ description: "Task with deps" });
+      const dir = join(rootDir, ".kb", "tasks", task.id);
+      await writeFile(
+        join(dir, "PROMPT.md"),
+        `# ${task.id}: Task with deps
+
+## Dependencies
+
+- **Task:** KB-010 (first dep)
+- **Task:** KB-020 (second dep)
+- **Task:** PROJ-003 (third dep)
+
+## Steps
+
+### Step 0: Preflight
+- [ ] Check things
+`,
+      );
+
+      const deps = await store.parseDependenciesFromPrompt(task.id);
+      expect(deps).toEqual(["KB-010", "KB-020", "PROJ-003"]);
+    });
+
+    it("returns empty array when dependencies section says None", async () => {
+      const task = await store.createTask({ description: "No deps" });
+      const dir = join(rootDir, ".kb", "tasks", task.id);
+      await writeFile(
+        join(dir, "PROMPT.md"),
+        `# ${task.id}: No deps
+
+## Dependencies
+
+- **None**
+
+## Steps
+
+### Step 0: Preflight
+- [ ] Check things
+`,
+      );
+
+      const deps = await store.parseDependenciesFromPrompt(task.id);
+      expect(deps).toEqual([]);
+    });
+
+    it("returns empty array when no Dependencies section exists", async () => {
+      const task = await store.createTask({ description: "No section" });
+      const dir = join(rootDir, ".kb", "tasks", task.id);
+      await writeFile(
+        join(dir, "PROMPT.md"),
+        `# ${task.id}: No section
+
+## Steps
+
+### Step 0: Preflight
+- [ ] Check things
+`,
+      );
+
+      const deps = await store.parseDependenciesFromPrompt(task.id);
+      expect(deps).toEqual([]);
+    });
+
+    it("returns empty array when task has no PROMPT.md file", async () => {
+      const task = await store.createTask({ description: "No prompt" });
+      const dir = join(rootDir, ".kb", "tasks", task.id);
+      // Delete the PROMPT.md that createTask generates
+      const { unlink } = await import("node:fs/promises");
+      await unlink(join(dir, "PROMPT.md"));
+
+      const deps = await store.parseDependenciesFromPrompt(task.id);
+      expect(deps).toEqual([]);
+    });
+  });
+
   describe("columnMovedAt", () => {
     it("createTask sets columnMovedAt", async () => {
       const before = new Date().toISOString();

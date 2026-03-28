@@ -287,7 +287,7 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
 
   async updateTask(
     id: string,
-    updates: { title?: string; description?: string; prompt?: string; worktree?: string; status?: string | null; dependencies?: string[]; blockedBy?: string | null; paused?: boolean; baseBranch?: string },
+    updates: { title?: string; description?: string; prompt?: string; worktree?: string; status?: string | null; dependencies?: string[]; blockedBy?: string | null; paused?: boolean; baseBranch?: string; size?: "S" | "M" | "L"; reviewLevel?: number },
   ): Promise<Task> {
     return this.withTaskLock(id, async () => {
       const dir = this.taskDir(id);
@@ -309,6 +309,8 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       }
       if (updates.paused !== undefined) task.paused = updates.paused || undefined;
       if (updates.baseBranch !== undefined) task.baseBranch = updates.baseBranch;
+      if (updates.size !== undefined) task.size = updates.size;
+      if (updates.reviewLevel !== undefined) task.reviewLevel = updates.reviewLevel;
       task.updatedAt = new Date().toISOString();
 
       await this.atomicWriteTaskJson(dir, task);
@@ -446,6 +448,44 @@ export class TaskStore extends EventEmitter<TaskStoreEvents> {
       steps.push({ name: match[1].trim(), status: "pending" });
     }
     return steps;
+  }
+
+  /**
+   * Parse the `## Dependencies` section from a task's PROMPT.md and extract
+   * task IDs from lines matching `- **Task:** {ID}` (where ID is `[A-Z]+-\d+`).
+   *
+   * Returns an empty array if the section says `- **None**`, has no task
+   * references, or if the section/file doesn't exist.
+   *
+   * @param id - The task ID whose PROMPT.md to parse
+   * @returns Array of dependency task IDs (e.g. `["KB-001", "KB-002"]`)
+   */
+  async parseDependenciesFromPrompt(id: string): Promise<string[]> {
+    const dir = this.taskDir(id);
+    const promptPath = join(dir, "PROMPT.md");
+    if (!existsSync(promptPath)) return [];
+
+    const content = await readFile(promptPath, "utf-8");
+
+    // Find the ## Dependencies section.
+    // We locate the heading then slice to the next heading (or end of file)
+    // to avoid multiline `$` anchor issues with lazy quantifiers.
+    const headingMatch = content.match(/^##\s+Dependencies\s*$/m);
+    if (!headingMatch) return [];
+
+    const startIdx = headingMatch.index! + headingMatch[0].length;
+    const rest = content.slice(startIdx);
+    const nextHeading = rest.search(/\n##?\s/);
+    const section = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+
+    const ids: string[] = [];
+    const taskIdRegex = /^-\s+\*\*Task:\*\*\s+([A-Z]+-\d+)/gm;
+    let match;
+    while ((match = taskIdRegex.exec(section)) !== null) {
+      ids.push(match[1]);
+    }
+
+    return ids;
   }
 
   /**

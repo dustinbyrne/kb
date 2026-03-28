@@ -1,4 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { mkdir, writeFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { AgentSemaphore } from "./concurrency.js";
 
 // Mock createKbAgent before importing TriageProcessor
@@ -31,6 +35,9 @@ function createMockStore(tasks: any[] = []) {
     updateTask: vi.fn().mockResolvedValue({}),
     moveTask: vi.fn().mockResolvedValue({}),
     appendAgentLog: vi.fn().mockResolvedValue(undefined),
+    parseDependenciesFromPrompt: vi.fn().mockResolvedValue([]),
+    logEntry: vi.fn().mockResolvedValue({}),
+    deleteTask: vi.fn().mockResolvedValue({}),
     getSettings: vi.fn().mockResolvedValue({
       maxConcurrent: 2,
       maxWorktrees: 4,
@@ -664,5 +671,158 @@ describe("TriageProcessor agent log persistence", () => {
 
     expect(onAgentText).toHaveBeenCalledWith("KB-001", "hi");
     expect(store.appendAgentLog).toHaveBeenCalledWith("KB-001", "hi", "text", undefined, "triage");
+  });
+});
+
+describe("TriageProcessor dependency parsing", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tmpDir = mkdtempSync(join(tmpdir(), "kb-triage-dep-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  const makeTask = (id = "KB-001") => ({
+    id,
+    title: "Test",
+    description: "Test task",
+    column: "triage" as const,
+    dependencies: [],
+    steps: [],
+    currentStep: 0,
+    log: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  async function writePromptMd(rootDir: string, taskId: string, content: string) {
+    const dir = join(rootDir, ".kb", "tasks", taskId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "PROMPT.md"), content);
+  }
+
+  it("calls parseDependenciesFromPrompt and persists deps via updateTask before moveTask", async () => {
+    const store = createMockStore();
+    store.parseDependenciesFromPrompt.mockResolvedValue(["KB-010", "KB-020"]);
+
+    const promptContent = `# KB-001: Test Task
+
+**Size:** M
+
+## Review Level: 2 (Plan and Code)
+
+## Dependencies
+
+- **Task:** KB-010 (first dep)
+- **Task:** KB-020 (second dep)
+
+## Steps
+
+### Step 0: Preflight
+`;
+    await writePromptMd(tmpDir, "KB-001", promptContent);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, tmpDir);
+    await triage.specifyTask(makeTask());
+
+    // Verify parseDependenciesFromPrompt was called
+    expect(store.parseDependenciesFromPrompt).toHaveBeenCalledWith("KB-001");
+
+    // Verify updateTask was called with dependencies, size, and reviewLevel
+    const updateCalls = store.updateTask.mock.calls;
+    // First call is { status: "specifying" }, second is the post-parse call
+    expect(updateCalls.length).toBeGreaterThanOrEqual(2);
+    const postParseCAll = updateCalls[1];
+    expect(postParseCAll[0]).toBe("KB-001");
+    expect(postParseCAll[1]).toMatchObject({
+      status: null,
+      dependencies: ["KB-010", "KB-020"],
+      size: "M",
+      reviewLevel: 2,
+    });
+
+    // Verify moveTask was called after updateTask
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "todo");
+  });
+
+  it("does not include dependencies in updateTask when parseDependenciesFromPrompt returns empty", async () => {
+    const store = createMockStore();
+    store.parseDependenciesFromPrompt.mockResolvedValue([]);
+
+    const promptContent = `# KB-001: Test Task
+
+## Dependencies
+
+- **None**
+
+## Steps
+`;
+    await writePromptMd(tmpDir, "KB-001", promptContent);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, tmpDir);
+    await triage.specifyTask(makeTask());
+
+    // The post-parse updateTask call should not include dependencies
+    const updateCalls = store.updateTask.mock.calls;
+    const postParseCall = updateCalls[1];
+    expect(postParseCall[1]).not.toHaveProperty("dependencies");
+    expect(postParseCall[1]).toHaveProperty("status", null);
+
+    expect(store.moveTask).toHaveBeenCalledWith("KB-001", "todo");
+  });
+
+  it("extracts size and reviewLevel from PROMPT.md front-matter", async () => {
+    const store = createMockStore();
+    store.parseDependenciesFromPrompt.mockResolvedValue([]);
+
+    const promptContent = `# KB-001: Test Task
+
+**Size:** L
+
+## Review Level: 3 (Full)
+
+## Dependencies
+
+- **None**
+
+## Steps
+`;
+    await writePromptMd(tmpDir, "KB-001", promptContent);
+
+    mockedCreateHaiAgent.mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      },
+    } as any);
+
+    const triage = new TriageProcessor(store, tmpDir);
+    await triage.specifyTask(makeTask());
+
+    const updateCalls = store.updateTask.mock.calls;
+    const postParseCall = updateCalls[1];
+    expect(postParseCall[1]).toMatchObject({
+      status: null,
+      size: "L",
+      reviewLevel: 3,
+    });
   });
 });
