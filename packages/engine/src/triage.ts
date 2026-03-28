@@ -1,13 +1,26 @@
-import type { TaskStore, Task, TaskDetail, TaskAttachment, Settings } from "@kb/core";
+import type {
+  TaskStore,
+  Task,
+  TaskDetail,
+  TaskAttachment,
+  Settings,
+} from "@kb/core";
 import type { ImageContent } from "@mariozechner/pi-ai";
 import { Type, type Static } from "@mariozechner/pi-ai";
-import type { ToolDefinition, AgentSession } from "@mariozechner/pi-coding-agent";
+import type {
+  ToolDefinition,
+  AgentSession,
+} from "@mariozechner/pi-coding-agent";
 import { createKbAgent } from "./pi.js";
 import { reviewStep, type ReviewVerdict } from "./reviewer.js";
 import { PRIORITY_SPECIFY, type AgentSemaphore } from "./concurrency.js";
 import { AgentLogger } from "./agent-logger.js";
 import { triageLog, reviewerLog } from "./logger.js";
-import { isUsageLimitError, checkSessionError, type UsageLimitPauser } from "./usage-limit-detector.js";
+import {
+  isUsageLimitError,
+  checkSessionError,
+  type UsageLimitPauser,
+} from "./usage-limit-detector.js";
 
 const TRIAGE_SYSTEM_PROMPT = `You are a task specification agent for "kb", an AI-orchestrated task board.
 
@@ -83,7 +96,7 @@ Follow this structure exactly:
 ### Step {N}: Documentation & Delivery
 
 - [ ] Update relevant documentation
-- [ ] Out-of-scope findings created as new tasks via \`kb task create\`
+- [ ] Out-of-scope findings created as new tasks via \`task_create\` tool
 
 ## Documentation Requirements
 
@@ -136,6 +149,10 @@ write a PROMPT.md. Instead, write a single line to the output file:
 When you plan to list a task in the \`## Dependencies\` section, first call \`task_get\` on that task ID to read its PROMPT.md.
 Use what you learn — file scope, APIs, patterns, completion criteria — to make the new spec accurate: reference the right paths, avoid conflicting assumptions, and describe what the dependency must deliver before this task starts.
 If the dependency task has no PROMPT.md yet (not yet specified), note that in the Dependencies section.
+
+## Executor tools
+The executor agent has these extra built-in tools:
+- \`task_create\` — create follow-up tasks
 
 ## Guidelines
 - Read the project structure and relevant source files to understand context BEFORE writing
@@ -219,7 +236,9 @@ export class TriageProcessor {
     store.on("settings:updated", ({ settings, previous }) => {
       if (settings.globalPause && !previous.globalPause) {
         for (const [taskId, session] of this.activeSessions) {
-          triageLog.log(`Global pause — terminating triage session for ${taskId}`);
+          triageLog.log(
+            `Global pause — terminating triage session for ${taskId}`,
+          );
           this.pauseAborted.add(taskId);
           session.dispose();
         }
@@ -231,7 +250,9 @@ export class TriageProcessor {
     store.on("settings:updated", ({ settings, previous }) => {
       if (settings.enginePaused && !previous.enginePaused) {
         for (const [taskId, session] of this.activeSessions) {
-          triageLog.log(`Engine pause — terminating triage session for ${taskId}`);
+          triageLog.log(
+            `Engine pause — terminating triage session for ${taskId}`,
+          );
           this.pauseAborted.add(taskId);
           session.dispose();
         }
@@ -335,7 +356,9 @@ export class TriageProcessor {
       // Engine paused (soft pause): halt new triage work, but let agents finish
       if (settings.enginePaused) {
         if (!this.wasEnginePaused) {
-          triageLog.log("Engine paused — triage halted (in-flight agents continue)");
+          triageLog.log(
+            "Engine paused — triage halted (in-flight agents continue)",
+          );
           this.wasEnginePaused = true;
         }
         return;
@@ -374,7 +397,9 @@ export class TriageProcessor {
     if (this.processing.has(task.id)) return;
     this.processing.add(task.id);
 
-    triageLog.log(`Specifying ${task.id}: ${task.title || task.description.slice(0, 60)}`);
+    triageLog.log(
+      `Specifying ${task.id}: ${task.title || task.description.slice(0, 60)}`,
+    );
     this.options.onSpecifyStart?.(task);
 
     try {
@@ -404,12 +429,19 @@ export class TriageProcessor {
         // Checkpoint for RETHINK rewind — captured lazily on first review_spec call
         const checkpointRef: { current: string | null } = { current: null };
         // Track the last spec review verdict for post-session enforcement
-        const specReviewVerdictRef: { current: ReviewVerdict | null } = { current: null };
+        const specReviewVerdictRef: { current: ReviewVerdict | null } = {
+          current: null,
+        };
 
         const customTools = [
           ...this.createTriageTools(),
           this.createReviewSpecTool(
-            task.id, promptPath, sessionRef, checkpointRef, specReviewVerdictRef, settings,
+            task.id,
+            promptPath,
+            sessionRef,
+            checkpointRef,
+            specReviewVerdictRef,
+            settings,
           ),
         ];
 
@@ -435,12 +467,23 @@ export class TriageProcessor {
 
         try {
           // Read attachment contents for inlining in prompt
-          const { attachmentContents, imageContents } = await readAttachmentContents(
-            this.rootDir, detail.id, detail.attachments,
-          );
+          const { attachmentContents, imageContents } =
+            await readAttachmentContents(
+              this.rootDir,
+              detail.id,
+              detail.attachments,
+            );
 
-          const agentPrompt = buildSpecificationPrompt(detail, promptPath, settings, attachmentContents);
-          await session.prompt(agentPrompt, imageContents.length > 0 ? { images: imageContents } : undefined);
+          const agentPrompt = buildSpecificationPrompt(
+            detail,
+            promptPath,
+            settings,
+            attachmentContents,
+          );
+          await session.prompt(
+            agentPrompt,
+            imageContents.length > 0 ? { images: imageContents } : undefined,
+          );
 
           // Re-raise errors that pi-coding-agent swallowed after exhausting retries.
           checkSessionError(session);
@@ -448,8 +491,13 @@ export class TriageProcessor {
           // Post-session REVISE gate: if the last review_spec verdict was REVISE
           // and the agent finished without getting APPROVE, don't move to todo.
           if (specReviewVerdictRef.current === "REVISE") {
-            triageLog.log(`${task.id} spec review ended with REVISE — not moving to todo`);
-            await this.store.logEntry(task.id, "Spec review ended with REVISE verdict — specification not approved");
+            triageLog.log(
+              `${task.id} spec review ended with REVISE — not moving to todo`,
+            );
+            await this.store.logEntry(
+              task.id,
+              "Spec review ended with REVISE verdict — specification not approved",
+            );
             await this.store.updateTask(task.id, { status: null });
             return;
           }
@@ -458,23 +506,31 @@ export class TriageProcessor {
           const { readFile } = await import("node:fs/promises");
           const { join } = await import("node:path");
           const written = await readFile(
-            join(this.rootDir, promptPath), "utf-8",
+            join(this.rootDir, promptPath),
+            "utf-8",
           ).catch(() => "");
           const dupMatch = written.match(/^DUPLICATE:\s*([A-Z]+-\d+)/i);
 
           if (dupMatch) {
             const dupId = dupMatch[1];
             triageLog.log(`${task.id} is a duplicate of ${dupId} — closing`);
-            await this.store.logEntry(task.id, `Duplicate of ${dupId} — closed`);
+            await this.store.logEntry(
+              task.id,
+              `Duplicate of ${dupId} — closed`,
+            );
             await this.store.deleteTask(task.id);
           } else {
             // Parse dependencies, size, and review level from the generated PROMPT.md
-            const parsedDeps = await this.store.parseDependenciesFromPrompt(task.id);
+            const parsedDeps = await this.store.parseDependenciesFromPrompt(
+              task.id,
+            );
             const taskUpdates: Record<string, any> = { status: null };
 
             if (parsedDeps.length > 0) {
               taskUpdates.dependencies = parsedDeps;
-              triageLog.log(`${task.id} dependencies: ${parsedDeps.join(", ")}`);
+              triageLog.log(
+                `${task.id} dependencies: ${parsedDeps.join(", ")}`,
+              );
             }
 
             // Extract size (S|M|L) from front-matter
@@ -519,7 +575,11 @@ export class TriageProcessor {
       } else {
         // Check if the error is a usage-limit error and trigger global pause
         if (this.options.usageLimitPauser && isUsageLimitError(err.message)) {
-          await this.options.usageLimitPauser.onUsageLimitHit("triage", task.id, err.message);
+          await this.options.usageLimitPauser.onUsageLimitHit(
+            "triage",
+            task.id,
+            err.message,
+          );
         }
         await this.store.updateTask(task.id, { status: null }).catch(() => {});
         triageLog.error(`✗ ${task.id} specification failed:`, err.message);
@@ -555,7 +615,9 @@ export class TriageProcessor {
         }
         const lines = active.map((t) => {
           const desc = t.title || t.description.slice(0, 80);
-          const deps = t.dependencies.length ? ` [deps: ${t.dependencies.join(", ")}]` : "";
+          const deps = t.dependencies.length
+            ? ` [deps: ${t.dependencies.join(", ")}]`
+            : "";
           return `${t.id} (${t.column}): ${desc}${deps}`;
         });
         return {
@@ -572,14 +634,19 @@ export class TriageProcessor {
         "Get full details of a specific task including its PROMPT.md content. " +
         "Use to verify duplicates and to read dependency task specs before writing a new PROMPT.md.",
       parameters: taskGetParams,
-      execute: async (_callId: string, params: Static<typeof taskGetParams>) => {
+      execute: async (
+        _callId: string,
+        params: Static<typeof taskGetParams>,
+      ) => {
         try {
           const task = await store.getTask(params.id);
           const parts = [
             `ID: ${task.id}`,
             `Column: ${task.column}`,
             `Description: ${task.description}`,
-            task.dependencies.length ? `Dependencies: ${task.dependencies.join(", ")}` : null,
+            task.dependencies.length
+              ? `Dependencies: ${task.dependencies.join(", ")}`
+              : null,
             "",
             "PROMPT.md:",
             task.prompt || "(not yet specified)",
@@ -590,7 +657,9 @@ export class TriageProcessor {
           };
         } catch {
           return {
-            content: [{ type: "text" as const, text: `Task ${params.id} not found.` }],
+            content: [
+              { type: "text" as const, text: `Task ${params.id} not found.` },
+            ],
             details: {},
           };
         }
@@ -619,7 +688,11 @@ export class TriageProcessor {
     sessionRef: { current: AgentSession | null },
     checkpointRef: { current: string | null },
     specReviewVerdictRef: { current: ReviewVerdict | null },
-    settings: { defaultProvider?: string; defaultModelId?: string; defaultThinkingLevel?: string },
+    settings: {
+      defaultProvider?: string;
+      defaultModelId?: string;
+      defaultThinkingLevel?: string;
+    },
   ): ToolDefinition {
     const store = this.store;
     const rootDir = this.rootDir;
@@ -640,7 +713,8 @@ export class TriageProcessor {
         // Capture checkpoint lazily on first call — at this point the session
         // has already started and has a valid conversation state to rewind to.
         if (!checkpointRef.current && sessionRef.current) {
-          checkpointRef.current = sessionRef.current.sessionManager.getLeafId() ?? null;
+          checkpointRef.current =
+            sessionRef.current.sessionManager.getLeafId() ?? null;
         }
 
         try {
@@ -648,22 +722,30 @@ export class TriageProcessor {
           const { readFile } = await import("node:fs/promises");
           const { join } = await import("node:path");
           const promptContent = await readFile(
-            join(rootDir, promptPath), "utf-8",
+            join(rootDir, promptPath),
+            "utf-8",
           ).catch(() => "");
 
           if (!promptContent) {
             return {
-              content: [{
-                type: "text" as const,
-                text: "UNAVAILABLE — PROMPT.md file not found or empty. Write the specification first, then call review_spec.",
-              }],
+              content: [
+                {
+                  type: "text" as const,
+                  text: "UNAVAILABLE — PROMPT.md file not found or empty. Write the specification first, then call review_spec.",
+                },
+              ],
               details: {},
             };
           }
 
           const result = await reviewStep(
-            rootDir, taskId, 0, "Specification",
-            "spec", promptContent, undefined,
+            rootDir,
+            taskId,
+            0,
+            "Specification",
+            "spec",
+            promptContent,
+            undefined,
             {
               onText: (delta) => options.onAgentText?.(taskId, delta),
               defaultProvider: settings.defaultProvider,
@@ -697,8 +779,12 @@ export class TriageProcessor {
               const checkpointId = checkpointRef.current;
               if (checkpointId && sessionRef.current) {
                 try {
-                  await sessionRef.current.navigateTree(checkpointId, { summarize: false });
-                  triageLog.log(`${taskId}: RETHINK — session rewound to checkpoint ${checkpointId}`);
+                  await sessionRef.current.navigateTree(checkpointId, {
+                    summarize: false,
+                  });
+                  triageLog.log(
+                    `${taskId}: RETHINK — session rewound to checkpoint ${checkpointId}`,
+                  );
                 } catch {
                   // Fallback to branchWithSummary
                   try {
@@ -706,13 +792,19 @@ export class TriageProcessor {
                       checkpointId,
                       `RETHINK: ${result.summary || "Approach rejected by reviewer"}`,
                     );
-                    triageLog.log(`${taskId}: RETHINK — branched from checkpoint ${checkpointId}`);
+                    triageLog.log(
+                      `${taskId}: RETHINK — branched from checkpoint ${checkpointId}`,
+                    );
                   } catch (branchErr: any) {
-                    triageLog.error(`${taskId}: RETHINK session rewind failed: ${branchErr.message}`);
+                    triageLog.error(
+                      `${taskId}: RETHINK session rewind failed: ${branchErr.message}`,
+                    );
                   }
                 }
               } else {
-                triageLog.log(`${taskId}: RETHINK — no session checkpoint, skipping rewind`);
+                triageLog.log(
+                  `${taskId}: RETHINK — no session checkpoint, skipping rewind`,
+                );
               }
 
               await store.logEntry(
@@ -732,7 +824,12 @@ export class TriageProcessor {
           reviewerLog.error(`${taskId}: spec review failed: ${err.message}`);
           await store.logEntry(taskId, `Spec review failed: ${err.message}`);
           return {
-            content: [{ type: "text" as const, text: `UNAVAILABLE — reviewer error: ${err.message}` }],
+            content: [
+              {
+                type: "text" as const,
+                text: `UNAVAILABLE — reviewer error: ${err.message}`,
+              },
+            ],
             details: {},
           };
         }
@@ -749,7 +846,12 @@ export interface AttachmentContent {
   text: string | null;
 }
 
-const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+const IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
 const TEXT_INLINE_LIMIT = 50 * 1024; // 50KB
 
 /**
@@ -760,7 +862,10 @@ export async function readAttachmentContents(
   rootDir: string,
   taskId: string,
   attachments?: TaskAttachment[],
-): Promise<{ attachmentContents: AttachmentContent[]; imageContents: ImageContent[] }> {
+): Promise<{
+  attachmentContents: AttachmentContent[];
+  imageContents: ImageContent[];
+}> {
   const attachmentContents: AttachmentContent[] = [];
   const imageContents: ImageContent[] = [];
 
@@ -772,7 +877,14 @@ export async function readAttachmentContents(
   const { join } = await import("node:path");
 
   for (const att of attachments) {
-    const filePath = join(rootDir, ".kb", "tasks", taskId, "attachments", att.filename);
+    const filePath = join(
+      rootDir,
+      ".kb",
+      "tasks",
+      taskId,
+      "attachments",
+      att.filename,
+    );
 
     try {
       if (IMAGE_MIME_TYPES.has(att.mimeType)) {
@@ -789,9 +901,10 @@ export async function readAttachmentContents(
         });
       } else {
         const data = await readFile(filePath, "utf-8");
-        const text = data.length > TEXT_INLINE_LIMIT
-          ? data.slice(0, TEXT_INLINE_LIMIT) + "\n... (truncated at 50KB)"
-          : data;
+        const text =
+          data.length > TEXT_INLINE_LIMIT
+            ? data.slice(0, TEXT_INLINE_LIMIT) + "\n... (truncated at 50KB)"
+            : data;
         attachmentContents.push({
           originalName: att.originalName,
           mimeType: att.mimeType,
@@ -807,12 +920,19 @@ export async function readAttachmentContents(
   return { attachmentContents, imageContents };
 }
 
-export function buildSpecificationPrompt(task: TaskDetail, promptPath: string, settings?: Settings, attachmentContents?: AttachmentContent[]): string {
+export function buildSpecificationPrompt(
+  task: TaskDetail,
+  promptPath: string,
+  settings?: Settings,
+  attachmentContents?: AttachmentContent[],
+): string {
   let commandsSection = "";
   if (settings?.testCommand || settings?.buildCommand) {
     const lines = ["## Project Commands"];
-    if (settings.testCommand) lines.push(`- **Test:** \`${settings.testCommand}\``);
-    if (settings.buildCommand) lines.push(`- **Build:** \`${settings.buildCommand}\``);
+    if (settings.testCommand)
+      lines.push(`- **Test:** \`${settings.testCommand}\``);
+    if (settings.buildCommand)
+      lines.push(`- **Build:** \`${settings.buildCommand}\``);
     lines.push("Use these exact commands in testing/verification steps.");
     commandsSection = "\n\n" + lines.join("\n");
   }
@@ -823,9 +943,13 @@ export function buildSpecificationPrompt(task: TaskDetail, promptPath: string, s
     for (const att of attachmentContents) {
       if (att.text === null) {
         // Image — will be passed via image content blocks
-        parts.push(`- **${att.originalName}** (${att.mimeType}) — included as image below`);
+        parts.push(
+          `- **${att.originalName}** (${att.mimeType}) — included as image below`,
+        );
       } else {
-        parts.push(`### ${att.originalName} (${att.mimeType})\n\n\`\`\`\n${att.text}\n\`\`\``);
+        parts.push(
+          `### ${att.originalName} (${att.mimeType})\n\n\`\`\`\n${att.text}\n\`\`\``,
+        );
       }
     }
     attachmentsSection = "\n\n" + parts.join("\n");
