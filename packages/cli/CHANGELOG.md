@@ -1,5 +1,33 @@
 # @dustinbyrne/kb
 
+## 0.4.0
+
+### Minor Changes
+
+- 2d13b82: Add pi extension. Installing `@dustinbyrne/kb` via `pi install` now provides native tools (`kb_task_create`, `kb_task_list`, `kb_task_show`, `kb_task_attach`, `kb_task_pause`, `kb_task_unpause`) and a `/kb` command to start the dashboard and AI engine from within a pi session.
+- 494de14: Changed `autoMerge` to default to `true` for new boards.
+- 50821fc: Add global pause button to stop all automated agents and scheduling
+- cac10af: Split engine control into Pause (soft) and Stop (hard). The dashboard Header now shows two buttons: "Pause AI engine" stops new work from being dispatched while letting in-flight agents finish gracefully, and "Stop AI engine" (previously the only Pause button) immediately kills all active agent sessions. A new `enginePaused` setting field controls the soft-pause state alongside the existing `globalPause` hard-stop.
+
+### Patch Changes
+
+- d19b51f: Auto-assign random port when dashboard port is already in use instead of crashing with EADDRINUSE.
+- ceb379d: Engine pause now terminates active agent sessions (matching global pause behavior) instead of letting them finish gracefully. Tasks are moved back to todo/cleared for clean resume on unpause.
+- acb246a: Fix active agent glow disappearing when scheduling is soft-paused
+- 43aada5: Fix scheduler to not count in-review worktrees against maxWorktrees limit. In-review tasks are idle (waiting to merge) and no longer block new tasks from starting.
+- 9033a79: Fix InlineCreateCard cancelling when clicking dependency dropdown items with empty description.
+- 96f1070: Fix double horizontal scrollbar on mobile board view by switching the board from a 5-column grid to a flex layout on narrow viewports (≤768px) with snap-scrolling.
+- 3dc741c: Fix auto-pause on rate limit when pi-coding-agent exhausts retries. After `session.prompt()` resolves with exhausted retries, all four agent types (executor, triage, merger, reviewer) now detect the error on `session.state.error` and trigger `UsageLimitPauser` to activate global pause. Previously, rate-limit errors that pi-coding-agent handled internally were silently swallowed, causing tasks to be promoted to wrong columns with incomplete work.
+- 2854553: Fix triage allowing tasks to reach executor before spec review approval
+- 72a8953: Fix specifying agents not respecting maxConcurrent concurrency limit
+- a2a12f9: Persist worktree pool across engine restarts. When `recycleWorktrees` is enabled, idle worktrees are rehydrated from disk on startup instead of being forgotten. When disabled, orphaned worktrees are cleaned up automatically.
+- 65b9585: Add priority-based agent scheduling: merge agents are served before execution agents, which are served before specification agents, when competing for concurrency slots.
+- 98ed082: Restructure README to lead with pi extension usage; move standalone CLI docs to STANDALONE.md.
+- 2d13b82: Agents now declare dependencies when creating multiple related tasks during execution
+- 0e0643a: Skip merger agent when squash merge stages nothing (branch already merged via dependency)
+- d2e2e50: Make "Pause AI engine" a soft pause: only prevents new agents from starting while allowing currently running agents to finish their work naturally. "Stop AI engine" (global pause) still immediately terminates all active agents.
+- 90764b9: Auto-pause engine when API usage limits are detected (rate limits, overloaded, quota exceeded). Prevents wasteful retries across concurrent agents.
+
 ## 0.3.1
 
 ### Patch Changes

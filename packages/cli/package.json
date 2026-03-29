@@ -1,13 +1,17 @@
 {
   "name": "@dustinbyrne/kb",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "type": "module",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "bin": {
     "kb": "./dist/bin.js"
   },
   "pi": {
-    "extensions": ["./dist/extension.js"]
+    "extensions": [
+      "./dist/extension.js"
+    ]
   },
   "publishConfig": {
     "access": "public"
@@ -40,9 +44,15 @@
     "@sinclair/typebox": "*"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-ai": { "optional": true },
-    "@mariozechner/pi-coding-agent": { "optional": true },
-    "@sinclair/typebox": { "optional": true }
+    "@mariozechner/pi-ai": {
+      "optional": true
+    },
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@sinclair/typebox": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@kb/core": "workspace:*",
