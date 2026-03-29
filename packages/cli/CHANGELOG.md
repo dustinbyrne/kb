@@ -1,5 +1,11 @@
 # @dustinbyrne/kb
 
+## 0.4.1
+
+### Patch Changes
+
+- 088011e: Add dashboard screenshot to pi package gallery listing and README.
+
 ## 0.4.0
 
 ### Minor Changes
